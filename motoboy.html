@@ -1,0 +1,60 @@
+<!DOCTYPE html><html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chega Rápido - Motoboy</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
+header{background:#00a650;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:22px}
+.card{max-width:480px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.btn{width:100%;padding:14px;border:0;border-radius:12px;font-weight:800;font-size:16px;cursor:pointer;margin-top:10px}
+.btn-green{background:#00a650;color:#fff}.btn-orange{background:#ff5a00;color:#fff}.btn-gray{background:#eee}.btn-blue{background:#1976d2;color:#fff}
+.item{border:1px solid #eee;border-radius:12px;padding:14px;margin-top:10px}
+.item-aceita{border:2px solid #00a650;background:#f0fdf4}
+input{width:100%;padding:13px;border:1px solid #ddd;border-radius:11px;font-size:16px;margin-top:8px;text-align:center;letter-spacing:4px;font-weight:900}
+h3{margin:20px 0 0}
+</style></head><body>
+<header>🛵 CHEGA RÁPIDO - MOTOBOY</header>
+<div class="card">
+<h2 id="nomeMoto">Olá, Motoboy</h2><p id="cpfMoto" style="color:#666;margin:0"></p>
+<p id="placaMoto" style="color:#666;margin:4px 0 0"></p>
+<button class="btn btn-green" onclick="carregar()">🔄 Atualizar Entregas</button>
+
+<h3>📦 Minhas entregas aceitas - finalizar com código</h3>
+<div id="minhas"></div>
+
+<h3>🟠 Entregas pendentes na sua região</h3>
+<div id="lista"></div>
+
+<button class="btn btn-gray" onclick="localStorage.clear();location.href='index.html'">Sair</button>
+</div>
+<script>
+const moto=getMotoboy(); if(!moto) location.href='index.html';
+document.getElementById('nomeMoto').innerText='Olá, '+ (moto.nome_completo || moto.nome || 'Motoboy');
+document.getElementById('cpfMoto').innerText='CPF: '+moto.cpf;
+if(moto.placa_moto) document.getElementById('placaMoto').innerText='Placa: '+moto.placa_moto;
+
+async function carregar(){
+  // 1 - Minhas aceitas
+  const {data: minhas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', moto.id).eq('status','aceita').order('created_at',{ascending:false});
+  document.getElementById('minhas').innerHTML=(minhas||[]).map(e=>`<div class="item item-aceita"><b>${e.cliente_nome}</b> - R$ ${e.valor}<br>${e.endereco} - ${e.bairro||''} - ${e.cidade||''}<br><small>${e.observacao||''}</small><br><br><b>🔑 Peça o código para o cliente:</b><input id="codigo-${e.id}" placeholder="0000" maxlength="4" inputmode="numeric"><button class="btn btn-blue" onclick="finalizar('${e.id}')">✅ Confirmar entrega com código</button></div>`).join('')||'<p>Nenhuma entrega aceita ainda. Aceite uma abaixo.</p>';
+
+  // 2 - Pendentes
+  const {data,error}=await supabaseClient.from('entregas').select('*').eq('status','pendente').order('created_at',{ascending:false});
+  if(error) return document.getElementById('lista').innerHTML='Erro: '+error.message;
+  document.getElementById('lista').innerHTML=(data||[]).map(e=>`<div class="item"><b>${e.cliente_nome}</b> - R$ ${e.valor}<br>${e.endereco} - ${e.bairro||''} - ${e.cidade||''}<br><small>${e.observacao||''}</small><br><button class="btn btn-orange" onclick="aceitar('${e.id}')">Aceitar Entrega</button></div>`).join('')||'<p>Nenhuma entrega pendente</p>';
+}
+async function aceitar(id){
+  const {error}=await supabaseClient.from('entregas').update({status:'aceita',motoboy_id:moto.id}).eq('id',id).eq('status','pendente');
+  if(error) alert(error.message); else {alert('Entrega aceita! Vá buscar. Lembre: só finalize com o código que o cliente falar.');carregar();}
+}
+async function finalizar(id){
+  const codigoDigitado=document.getElementById('codigo-'+id).value.trim();
+  if(!codigoDigitado || codigoDigitado.length!==4) return alert('Digite o código de 4 números que o cliente falou');
+  const {data} = await supabaseClient.from('entregas').select('codigo_entrega').eq('id',id).single();
+  if(!data) return alert('Entrega não encontrada');
+  if(codigoDigitado !== data.codigo_entrega) return alert('❌ Código errado! Peça o código certo para o cliente. Não entregue sem o código.');
+  const {error}=await supabaseClient.from('entregas').update({status:'entregue', codigo_confirmado:true}).eq('id',id);
+  if(error) alert(error.message); else {alert('✅ Entrega confirmada com código! Bom trabalho!');carregar();}
+}
+carregar();
+</script></body></html>

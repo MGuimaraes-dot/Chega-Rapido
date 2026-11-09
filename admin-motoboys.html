@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aprovar Motoboys - Chega Rápido</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+    * { box-sizing: border-box; font-family: Arial, sans-serif; }
+  body { background: #f6f6f6; margin: 0; padding: 16px; }
+  .box { background: #fff; max-width: 700px; margin: 0 auto; padding: 16px; border-radius: 16px; }
+  h1 { font-size: 20px; }
+  .card { border: 1.5px solid #eee; border-radius: 12px; padding: 14px; margin-top: 12px; }
+  .card b { font-size: 16px; }
+  .card p { margin: 4px 0; font-size: 14px; color: #444; }
+  .fotos { display: flex; gap: 8px; margin: 10px 0; }
+  .fotos img { width: 48%; border-radius: 10px; object-fit: cover; height: 160px; }
+  .btn-aprovar { background: #16a34a; color: #fff; border: none; padding: 12px; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 8px; }
+  .btn-reprovar { background: #fee2e2; color: #dc2626; border: none; padding: 12px; border-radius: 10px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 8px; }
+  .vazio { text-align: center; color: #777; margin-top: 30px; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>✅ Aprovar Motoboys</h1>
+  <p>Só aparece quem está com status <b>pendente</b>.</p>
+  <div id="lista"></div>
+</div>
+<script>
+const SUPABASE_URL = "SUA_URL_DO_SUPABASE";
+const SUPABASE_KEY = "SUA_CHAVE_ANON_PUBLIC";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function carregar() {
+  const { data, error } = await supabaseClient.from('motoboys').select('*').eq('status','pendente').order('created_at', { ascending: false });
+  const lista = document.getElementById('lista');
+  if (error) { lista.innerHTML = "Erro: " + error.message; return; }
+  if (!data || data.length === 0) { lista.innerHTML = '<div class="vazio">Nenhum motoboy pendente 🎉</div>'; return; }
+  lista.innerHTML = data.map(m => `
+    <div class="card">
+      <b>${m.nome_completo || m.nome}</b>
+      <p>CPF: ${m.cpf} | Nasc: ${m.data_nascimento || ''}</p>
+      <p>Placa: ${m.placa_moto || m.placa} | Whats: ${m.telefone || m.whatsapp}</p>
+      <p>E-mail: ${m.email || ''}</p>
+      <div class="fotos">
+        <img src="${m.foto_documento_url}" onclick="window.open('${m.foto_documento_url}','_blank')">
+        <img src="${m.foto_selfie_url}" onclick="window.open('${m.foto_selfie_url}','_blank')">
+      </div>
+      <button class="btn-aprovar" onclick="aprovar('${m.id}', '${m.nome_completo || m.nome}', '${m.cpf}', '${m.telefone || m.whatsapp}')">✅ Aprovar e avisar no WhatsApp</button>
+      <button class="btn-reprovar" onclick="reprovar('${m.id}', '${m.nome_completo || m.nome}', '${m.telefone || m.whatsapp}')">❌ Reprovar</button>
+    </div>
+  `).join('');
+}
+
+async function aprovar(id, nome, cpf, telefone) {
+  if (!confirm(`Aprovar ${nome}?`)) return;
+  const { error } = await supabaseClient.from('motoboys').update({ status: 'aprovado' }).eq('id', id);
+  if (error) { alert("Erro: " + error.message); return; }
+  // VOLTA PARA O MOTOBOY NO WHATSAPP - APÓS VALIDAÇÃO
+  const telLimpo = telefone.replace(/\D/g, '');
+  const telZap = telLimpo.startsWith('55') ? telLimpo : '55' + telLimpo;
+  const mensagem = `Parabéns ${nome}! ✅ Seu cadastro no Chega Rápido foi APROVADO!\n\nVocê já pode entrar no app e começar a receber entregas.\n\nSeu login:\nUsuário: ${cpf}\nSenha: a que você criou no cadastro\n\nQualquer dúvida chama a gente aqui. Bora rodar! 🛵`;
+  window.open(`https://wa.me/${telZap}?text=${encodeURIComponent(mensagem)}`, '_blank');
+  carregar();
+}
+
+async function reprovar(id, nome, telefone) {
+  if (!confirm(`Reprovar ${nome}?`)) return;
+  const { error } = await supabaseClient.from('motoboys').update({ status: 'reprovado' }).eq('id', id);
+  if (error) { alert("Erro: " + error.message); return; }
+  const telLimpo = telefone.replace(/\D/g, '');
+  const telZap = telLimpo.startsWith('55') ? telLimpo : '55' + telLimpo;
+  const mensagem = `Olá ${nome}, seu cadastro no Chega Rápido não foi aprovado desta vez. Verifique seus documentos e tente novamente. Qualquer dúvida chama a gente.`;
+  window.open(`https://wa.me/${telZap}?text=${encodeURIComponent(mensagem)}`, '_blank');
+  carregar();
+}
+
+carregar();
+</script>
+</body>
+</html>

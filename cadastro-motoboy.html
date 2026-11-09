@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastro Motoboy - Chega Rápido</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+    * { box-sizing: border-box; font-family: Arial, sans-serif; }
+  body { background: #f6f6f6; margin: 0; padding: 16px; }
+  .box { background: #fff; max-width: 500px; margin: 0 auto; padding: 20px; border-radius: 16px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.sub { color: #666; margin: 0 0 20px; font-size: 14px; }
+  label { font-weight: bold; display: block; margin: 14px 0 6px; font-size: 14px; }
+  input { width: 100%; padding: 13px; border: 1.5px solid #ddd; border-radius: 12px; font-size: 15px; outline: none; }
+  input:focus { border-color: #16a34a; }
+  .file-box { border: 1.5px solid #ddd; border-radius: 12px; padding: 10px; display: flex; align-items: center; gap: 10px; }
+  .file-box input { border: none; padding: 0; }
+  .btn { width: 100%; padding: 15px; border: none; border-radius: 12px; background: #16a34a; color: #fff; font-weight: bold; font-size: 17px; margin-top: 20px; cursor: pointer; }
+  .btn:disabled { background: #999; }
+  .btn-sec { width: 100%; padding: 13px; border: none; border-radius: 12px; background: #eee; font-weight: bold; font-size: 16px; margin-top: 10px; cursor: pointer; }
+  #msg { margin-top: 14px; text-align: center; font-weight: bold; font-size: 14px; }
+  .erro { color: #dc2626; }
+  .ok { color: #16a34a; }
+  .dica { font-size: 12px; color: #666; margin-top: 4px; }
+  .sucesso { display: none; text-align: center; }
+  .sucesso .icone { font-size: 50px; }
+  .sucesso h2 { margin: 10px 0 6px; }
+  .sucesso p { color: #444; font-size: 15px; line-height: 1.5; }
+  .card-status { background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 12px; padding: 14px; margin-top: 16px; text-align: left; }
+  .card-status b { color: #9a3412; }
+  .card-aprovado { background: #f0fdf4; border-color: #bbf7d0; }
+  .card-aprovado b { color: #166534; }
+  .card-reprovado { background: #fef2f2; border-color: #fecaca; }
+  .card-reprovado b { color: #991b1b; }
+  .login-info { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 12px; margin-top: 10px; text-align: left; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="box" id="boxForm">
+  <h1>🚀 Cadastro Motoboy</h1>
+  <p class="sub">Preencha tudo. Sua conta vai para análise.</p>
+  <form id="formCadastro">
+    <label>Nome completo *</label>
+    <input type="text" id="nome_completo" placeholder="Seu nome completo" required>
+    <label>CPF *</label>
+    <input type="text" id="cpf" placeholder="Só números" inputmode="numeric" required>
+    <label>Data de nascimento *</label>
+    <input type="date" id="data_nascimento" required>
+    <label>Placa da moto *</label>
+    <input type="text" id="placa_moto" placeholder="EX: ABC-1234" style="text-transform:uppercase" required>
+    <label>E-mail *</label>
+    <input type="email" id="email" placeholder="seu@email.com" required>
+    <label>Telefone / WhatsApp *</label>
+    <input type="tel" id="telefone" placeholder="79 99999-9999" required>
+    <label>Crie sua senha *</label>
+    <input type="password" id="senha" placeholder="Mín 6 caracteres" minlength="6" required>
+    <label>Foto do documento (CNH ou RG) *</label>
+    <div class="file-box"><input type="file" id="foto_documento" accept="image/*" capture="environment" required></div>
+    <div class="dica">Vai abrir Câmera ou Galeria. Tire foto do documento aberto.</div>
+    <label>Sua selfie segurando o documento *</label>
+    <div class="file-box"><input type="file" id="foto_selfie" accept="image/*" capture="user" required></div>
+    <div class="dica">Vai abrir a câmera frontal. Segure o documento perto do rosto.</div>
+    <button type="submit" class="btn" id="btnEnviar">Enviar para análise →</button>
+    <button type="button" class="btn-sec" onclick="mostrarConsulta()">Já me cadastrei, consultar status</button>
+    <div id="msg"></div>
+  </form>
+
+  <!-- CONSULTAR STATUS -->
+  <div id="boxConsulta" style="display:none; margin-top:20px; border-top:1px solid #eee; padding-top:16px;">
+    <label>Consultar status pelo CPF</label>
+    <input type="text" id="cpfConsulta" placeholder="Digite seu CPF">
+    <button type="button" class="btn" onclick="consultarStatus()">Consultar status</button>
+    <div id="resultadoStatus"></div>
+    <button type="button" class="btn-sec" onclick="voltarForm()">Voltar para cadastro</button>
+  </div>
+</div>
+
+<!-- TELA DE SUCESSO - FICA DENTRO DO APP, NÃO ABRE WHATSAPP -->
+<div class="box sucesso" id="boxSucesso">
+  <div class="icone">✅</div>
+  <h2>Cadastro realizado com sucesso!</h2>
+  <p>Seu documento foi enviado e está <b>em análise</b>.<br>Assim que a gente validar, você vai receber no seu WhatsApp seu login para entrar.</p>
+  <div class="card-status">
+    <b>📄 Documento em análise</b>
+    <p id="resumoCadastro" style="margin:8px 0 0; color:#444;"></p>
+  </div>
+  <p style="font-size:13px; color:#666;">Anota aí pra não esquecer:<br><span id="lembreteLogin"></span></p>
+  <button class="btn" onclick="consultarStatusSalvo()">Consultar status agora</button>
+  <button class="btn-sec" onclick="window.location.href='index.html'">Voltar para início</button>
+  <div id="resultadoStatus2" style="margin-top:12px;"></div>
+</div>
+
+<script>
+const SUPABASE_URL = "SUA_URL_DO_SUPABASE";
+const SUPABASE_KEY = "SUA_CHAVE_ANON_PUBLIC";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const form = document.getElementById('formCadastro');
+const msg = document.getElementById('msg');
+const btn = document.getElementById('btnEnviar');
+
+let ultimoCpf = "";
+let ultimaSenha = "";
+
+function mostrarMsg(texto, tipo) { msg.textContent = texto; msg.className = tipo; }
+function mostrarConsulta() {
+  document.getElementById('boxConsulta').style.display = 'block';
+  document.getElementById('boxConsulta').scrollIntoView({ behavior: 'smooth' });
+}
+function voltarForm() { document.getElementById('boxConsulta').style.display = 'none'; }
+
+async function uploadFoto(file, nomeArquivo) {
+  const { error } = await supabaseClient.storage.from('documentos').upload(nomeArquivo, file, { upsert: true });
+  if (error) throw error;
+  const { data } = supabaseClient.storage.from('documentos').getPublicUrl(nomeArquivo);
+  return data.publicUrl;
+}
+
+async function buscarPorCpf(cpfDigitado) {
+  const cpfLimpo = cpfDigitado.replace(/\D/g, '');
+  // Busca tentando com e sem formatação
+  let { data, error } = await supabaseClient.from('motoboys').select('*').eq('cpf', cpfDigitado).maybeSingle();
+  if (!data) {
+    const res2 = await supabaseClient.from('motoboys').select('*').ilike('cpf', '%' + cpfLimpo + '%').maybeSingle();
+    data = res2.data; error = res2.error;
+  }
+  return { data, error };
+}
+
+function renderStatus(containerId, m) {
+  const el = document.getElementById(containerId);
+  if (!m) { el.innerHTML = '<div class="card-status"><b>Não encontrado.</b><p>Verifica se o CPF está certo.</p></div>'; return; }
+  if (m.status === 'pendente') {
+    el.innerHTML = `<div class="card-status"><b>📄 Documento em análise</b><p>Olá ${m.nome_completo || m.nome}, seu cadastro ainda está em análise. Aguarde, a gente vai te chamar no WhatsApp.</p></div>`;
+  } else if (m.status === 'aprovado') {
+    el.innerHTML = `<div class="card-status card-aprovado"><b>✅ Aprovado! Você já pode entrar.</b><p>Parabéns ${m.nome_completo || m.nome}!</p><div class="login-info">Seu login para entrar:<br><b>Usuário:</b> ${m.cpf}<br><b>Senha:</b> a que você criou no cadastro</div><button class="btn" style="margin-top:10px;" onclick="window.location.href='login-motoboy.html'">Entrar agora →</button></div>`;
+  } else if (m.status === 'reprovado') {
+    el.innerHTML = `<div class="card-status card-reprovado"><b>❌ Não aprovado</b><p>Seu documento não foi aprovado. Revise seus documentos e faça o cadastro novamente ou chame a gente no WhatsApp.</p></div>`;
+  } else {
+    el.innerHTML = `<div class="card-status"><b>Status: ${m.status}</b></div>`;
+  }
+}
+
+async function consultarStatus() {
+  const cpf = document.getElementById('cpfConsulta').value.trim();
+  if (!cpf) { alert("Digite seu CPF"); return; }
+  const { data } = await buscarPorCpf(cpf);
+  renderStatus('resultadoStatus', data);
+}
+async function consultarStatusSalvo() {
+  const { data } = await buscarPorCpf(ultimoCpf);
+  renderStatus('resultadoStatus2', data);
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  btn.disabled = true; btn.textContent = "Enviando..."; mostrarMsg("", "");
+  try {
+    const nomeCompleto = document.getElementById('nome_completo').value.trim();
+    const cpf = document.getElementById('cpf').value.trim();
+    const dataNascimento = document.getElementById('data_nascimento').value;
+    const placaMoto = document.getElementById('placa_moto').value.trim().toUpperCase();
+    const email = document.getElementById('email').value.trim();
+    const telefone = document.getElementById('telefone').value.trim();
+    const senha = document.getElementById('senha').value;
+    const fileDoc = document.getElementById('foto_documento').files[0];
+    const fileSelfie = document.getElementById('foto_selfie').files[0];
+    if (!fileDoc || !fileSelfie) { mostrarMsg("Envie as 2 fotos: documento e selfie.", "erro"); btn.disabled = false; btn.textContent = "Enviar para análise →"; return; }
+    const timestamp = Date.now();
+    const cpfLimpo = cpf.replace(/\D/g, '');
+    const urlDocumento = await uploadFoto(fileDoc, `motoboy_${cpfLimpo}_${timestamp}_doc.jpg`);
+    const urlSelfie = await uploadFoto(fileSelfie, `motoboy_${cpfLimpo}_${timestamp}_selfie.jpg`);
+    const { error } = await supabaseClient.from('motoboys').insert([{
+      nome: nomeCompleto, nome_completo: nomeCompleto, cpf: cpf,
+      data_nascimento: dataNascimento, placa: placaMoto, placa_moto: placaMoto,
+      email: email, whatsapp: telefone, telefone: telefone, senha: senha,
+      foto_documento_url: urlDocumento, foto_selfie_url: urlSelfie,
+      status: 'pendente', online: false, bloqueado: false
+    }]);
+    if (error) throw error;
+
+    // NÃO ABRE WHATSAPP - FICA SÓ A MENSAGEM DENTRO DO APP
+    ultimoCpf = cpf; ultimaSenha = senha;
+    localStorage.setItem('motoboy_cpf', cpf);
+    document.getElementById('boxForm').style.display = 'none';
+    document.getElementById('boxSucesso').style.display = 'block';
+    document.getElementById('resumoCadastro').innerHTML = `Nome: ${nomeCompleto}<br>CPF: ${cpf}<br>WhatsApp: ${telefone}`;
+    document.getElementById('lembreteLogin').innerHTML = `<b>Usuário:</b> ${cpf} <br><b>Senha:</b> a que você acabou de criar`;
+    window.scrollTo(0,0);
+  } catch (err) {
+    console.error(err); mostrarMsg("Erro: " + err.message, "erro");
+    btn.disabled = false; btn.textContent = "Enviar para análise →";
+  }
+});
+</script>
+</body>
+</html>

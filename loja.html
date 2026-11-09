@@ -1,0 +1,141 @@
+<!DOCTYPE html><html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chega Rápido - Loja</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/supabase.js"></script>
+<style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
+header{background:#ff5a00;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:22px}
+.card{max-width:480px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+label{font-size:13px;font-weight:700;display:block;margin:12px 0 4px}
+input,textarea{width:100%;padding:13px;border:1px solid #ddd;border-radius:11px;font-size:15px}
+.row{display:flex;gap:10px}.row>div{flex:1}
+.btn{width:100%;padding:14px;border:0;border-radius:12px;font-weight:800;font-size:16px;cursor:pointer;margin-top:12px}
+.btn-orange{background:#ff5a00;color:#fff}.btn-green{background:#00a650;color:#fff}.btn-gray{background:#eee}
+.item{border:1px solid #eee;border-radius:12px;padding:12px;margin-top:10px}
+.badge{padding:4px 8px;border-radius:20px;font-size:12px;font-weight:700;background:#fff3e0;color:#e65100}
+.codigo-box{background:#fff3e0;border:2px dashed #ff5a00;border-radius:12px;padding:12px;text-align:center;margin-top:12px;display:none}
+.codigo-num{font-size:32px;font-weight:900;color:#ff5a00;letter-spacing:4px}
+#sugestoes{border:1px solid #ff5a00;border-radius:11px;margin-top:4px;overflow:hidden;display:none;background:#fff;position:relative;z-index:10}
+#sugestoes div{padding:12px;border-bottom:1px solid #eee;cursor:pointer;font-size:14px}
+#sugestoes div:hover{background:#fff5ef}
+</style></head><body>
+<header>🛵 CHEGA RÁPIDO</header>
+<div class="card">
+<h2 id="nomeLoja">Olá, Loja</h2><p id="cnpjLoja" style="color:#666;margin:0"></p>
+<p id="cidadeLoja" style="color:#00a650;font-weight:700;margin:8px 0 0">📍 Detectando sua cidade...</p>
+
+<label>Nome do cliente *</label><input id="cliente" placeholder="Ex: Maykon">
+<label>CEP * - digita o CEP da rua</label><input id="cep" placeholder="Ex: 49180-000" maxlength="9" inputmode="numeric"><small id="cepMsg" style="color:#00a650"></small>
+<label>Endereço * - digita a rua que aparece a lista</label><input id="endereco" placeholder="Ex: Rua Francisco..." autocomplete="off"><div id="sugestoes"></div>
+<div class="row"><div><label>Número</label><input id="numero" placeholder="123"></div><div><label>Bairro</label><input id="bairro"></div></div>
+<label>Cidade</label><input id="cidade" placeholder="Sua cidade - vem automática pela localização">
+<label>Valor R$ *</label><input id="valor" placeholder="25.00" inputmode="decimal">
+<label>Observação</label><textarea id="obs" rows="2" placeholder="Ponto de referência..."></textarea>
+
+<div id="codigoBox" class="codigo-box">
+<div style="font-size:13px;font-weight:700">🔑 CÓDIGO DE ENTREGA - PASSE PARA O CLIENTE</div>
+<div id="codigoNum" class="codigo-num">0000</div>
+<div style="font-size:12px;color:#666">O motoboy só consegue finalizar se o cliente falar esse código</div>
+</div>
+
+<button class="btn btn-orange" onclick="criar()">+ Criar Entrega</button>
+<button class="btn btn-green" onclick="carregar()">Atualizar Minhas Entregas</button>
+<button class="btn btn-gray" onclick="localStorage.clear();location.href='index.html'">Sair</button>
+<div id="lista"></div><div id="erro" style="color:red;margin-top:10px"></div>
+</div>
+<script>
+const loja=getLoja(); if(!loja) location.href='index.html';
+document.getElementById('nomeLoja').innerText='Olá, '+loja.nome;
+document.getElementById('cnpjLoja').innerText='CNPJ: '+loja.cnpj;
+
+// CIDADE PELA LOCALIZAÇÃO - SEM NOME FIXO
+function setCidade(c){
+  if(!c) return;
+  document.getElementById('cidade').value=c;
+  document.getElementById('cidadeLoja').innerText='📍 '+c;
+  localStorage.setItem('cidade_atual', c);
+}
+const cidadeSalva = localStorage.getItem('cidade_atual');
+if(cidadeSalva){ setCidade(cidadeSalva); }
+if(navigator.geolocation){
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+      const d=await r.json();
+      const cidade=d.address.city||d.address.town||d.address.village||d.address.municipality||d.address.county;
+      if(cidade) setCidade(cidade);
+      else document.getElementById('cidadeLoja').innerText='📍 Digite sua cidade abaixo';
+    }catch(e){ document.getElementById('cidadeLoja').innerText='📍 Digite sua cidade abaixo'; }
+  },()=>{ document.getElementById('cidadeLoja').innerText='📍 Ative a localização ou digite sua cidade'; }, {timeout:5000});
+} else { document.getElementById('cidadeLoja').innerText='📍 Digite sua cidade abaixo'; }
+
+// BUSCA POR CEP
+document.getElementById('cep').addEventListener('blur',async()=>{
+  let cep=document.getElementById('cep').value.replace(/\D/g,''); if(cep.length!==8) return;
+  document.getElementById('cepMsg').innerText='Buscando...';
+  try{ const r=await fetch(`https://viacep.com.br/ws/${cep}/json/`); const d=await r.json();
+    if(d.erro){document.getElementById('cepMsg').innerText='CEP não encontrado, digite a rua abaixo';return;}
+    document.getElementById('endereco').value=d.logradouro||''; document.getElementById('bairro').value=d.bairro||''; document.getElementById('cidade').value=d.localidade||'';
+    document.getElementById('cepMsg').innerText='✅ '+d.logradouro+', '+d.bairro; document.getElementById('numero').focus();
+  }catch(e){document.getElementById('cepMsg').innerText='Sem internet p/ buscar CEP';}
+});
+
+// BUSCA POR RUA - aparece lista
+let timer;
+document.getElementById('endereco').addEventListener('input',()=>{
+  clearTimeout(timer);
+  const rua=document.getElementById('endereco').value.trim();
+  const cidade=document.getElementById('cidade').value.trim()||'';
+  const box=document.getElementById('sugestoes');
+  if(rua.length<3){box.style.display='none';return;}
+  if(!cidade){ box.style.display='none'; return; }
+  timer=setTimeout(async()=>{
+    try{
+      // Tenta buscar pelo estado SE via ViaCEP - precisa do UF, usa a cidade para tentar
+      // ViaCEP exige UF, então vamos tentar via Nominatim para pegar UF + sugestões
+      const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&q=${encodeURIComponent(rua + ', ' + cidade + ', Brasil')}`);
+      const dados=await r.json();
+      if(!dados||!dados.length){box.style.display='none';return;}
+      box.innerHTML=dados.map(d=>{
+        const addr=d.address||{};
+        const nomeRua=addr.road||addr.pedestrian||rua;
+        const bairro=addr.suburb||addr.neighbourhood||'';
+        const cidadeR=addr.city||addr.town||addr.village||cidade;
+        const cepR=addr.postcode||'';
+        return `<div onclick="escolherRua('${nomeRua.replace(/'/g,'')}','${bairro.replace(/'/g,'')}','${cepR}','${cidadeR.replace(/'/g,'')}')"><b>${nomeRua}</b><br><small>${bairro} - ${cidadeR} ${cepR ? '- CEP '+cepR : ''}</small></div>`;
+      }).join('');
+      box.style.display='block';
+    }catch(e){box.style.display='none';}
+  },400);
+});
+function escolherRua(rua,bairro,cep,cidade){
+  document.getElementById('endereco').value=rua;
+  if(bairro) document.getElementById('bairro').value=bairro;
+  if(cep) document.getElementById('cep').value=cep;
+  if(cidade) document.getElementById('cidade').value=cidade;
+  document.getElementById('sugestoes').style.display='none';
+  document.getElementById('cepMsg').innerText='✅ Rua selecionada! Bairro e cidade preenchidos.';
+  document.getElementById('numero').focus();
+}
+document.addEventListener('click',e=>{ if(!e.target.closest('#endereco') && !e.target.closest('#sugestoes')) document.getElementById('sugestoes').style.display='none'; });
+
+async function criar(){
+  const cliente=document.getElementById('cliente').value.trim(), endereco=document.getElementById('endereco').value.trim(), cep=document.getElementById('cep').value, bairro=document.getElementById('bairro').value, cidade=document.getElementById('cidade').value, numero=document.getElementById('numero').value, valor=document.getElementById('valor').value, obs=document.getElementById('obs').value;
+  if(!cliente||!endereco||!valor) return alert('Preencha cliente, endereço e valor');
+  if(!cidade) return alert('Preencha a cidade - ative a localização ou digite');
+  const codigo = Math.floor(1000 + Math.random()*9000).toString();
+  const {error}=await supabaseClient.from('entregas').insert([{loja_id:loja.id,cliente_nome:cliente,endereco:endereco+' - '+numero,cep,bairro,cidade,valor:parseFloat(valor.replace(',','.')),observacao:obs,status:'pendente',codigo_entrega:codigo}]);
+  if(error) document.getElementById('erro').innerText='Erro: '+error.message;
+  else {
+    document.getElementById('codigoBox').style.display='block';
+    document.getElementById('codigoNum').innerText=codigo;
+    document.getElementById('codigoBox').scrollIntoView({behavior:'smooth'});
+    alert('Entrega criada! CÓDIGO DO CLIENTE: '+codigo+' - Passe esse código para o cliente no WhatsApp!');
+    carregar();
+  }
+}
+async function carregar(){
+  const {data}=await supabaseClient.from('entregas').select('*').eq('loja_id',loja.id).order('created_at',{ascending:false});
+  document.getElementById('lista').innerHTML=(data||[]).map(e=>`<div class="item"><b>${e.cliente_nome}</b> - R$ ${e.valor}<br>${e.endereco} - ${e.bairro||''} - ${e.cidade||''}<br><span class="badge">${e.status}</span> ${e.codigo_entrega ? `<br><b style="color:#ff5a00;font-size:18px">🔑 Código: ${e.codigo_entrega}</b> <small> - passe para o cliente</small>` : ''}</div>`).join('')||'<p>Nenhuma entrega ainda</p>';
+} carregar();
+</script></body></html>
