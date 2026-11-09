@@ -12,21 +12,24 @@ body{margin:0;background:#0f172a;color:#fff;padding:14px}
 label{font-size:12px;color:#cbd5e1;display:block;margin:10px 0 4px}
 input{width:100%;padding:12px;border-radius:10px;border:1px solid #475569;background:#0f172a;color:#fff;font-size:15px}
 button{width:100%;padding:14px;border:none;border-radius:12px;font-weight:800;font-size:16px;cursor:pointer;margin-top:12px;background:#22c55e;color:#000}
-#msg{margin-top:12px;text-align:center;font-weight:700}
+button:disabled{opacity:.6}
+#msg{margin-top:12px;text-align:center;font-weight:700;white-space:pre-wrap}
 </style>
 </head>
 <body>
 <h2 style="text-align:center">🛵 Cadastro Motoboy</h2>
 <div class="card">
-<label>Nome completo</label><input id="nome" placeholder="Seu nome">
-<label>CPF</label><input id="cpf" placeholder="000.000.000-00">
-<label>WhatsApp</label><input id="whatsapp" placeholder="(17) 99999-9999">
-<label>Placa da moto</label><input id="placa" placeholder="ABC-1234">
-<label>Crie uma senha</label><input id="senha" type="password" placeholder="Senha pra entrar no app">
-<label>Foto da CNH</label><input type="file" id="cnh" accept="image/*">
-<label>Foto do documento da moto (CRLV)</label><input type="file" id="doc" accept="image/*">
-<label>Sua selfie</label><input type="file" id="selfie" accept="image/*">
-<button onclick="cadastrar()">ENVIAR CADASTRO</button>
+<label>Nome completo *</label><input id="nome" placeholder="Seu nome">
+<label>CPF *</label><input id="cpf" placeholder="Só números">
+<label>Data de nascimento *</label><input id="nascimento" type="date">
+<label>Placa da moto *</label><input id="placa" placeholder="ABC-1234">
+<label>E-mail *</label><input id="email" type="email" placeholder="seu@email.com">
+<label>Telefone / WhatsApp *</label><input id="whatsapp" placeholder="79 99999-9999">
+<label>Crie sua senha *</label><input id="senha" type="password" placeholder="Mín 6 caracteres">
+<label>Foto do documento (CNH ou RG) *</label><input type="file" id="cnh" accept="image/*">
+<label>Foto do documento da moto (CRLV) *</label><input type="file" id="doc" accept="image/*">
+<label>Sua selfie segurando o documento *</label><input type="file" id="selfie" accept="image/*">
+<button type="button" id="btnEnviar" onclick="cadastrar()">ENVIAR CADASTRO</button>
 <div id="msg"></div>
 </div>
 <script>
@@ -34,29 +37,33 @@ const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 async function uploadFoto(file, nomeArquivo){
-  const { error } = await supabaseClient.storage.from('documentos').upload(nomeArquivo, file, { upsert: true });
+  const { error } = await supabaseClient.storage.from('documentos').upload(nomeArquivo, file, { upsert: true, contentType: file.type });
   if(error) throw error;
   const { data: pub } = supabaseClient.storage.from('documentos').getPublicUrl(nomeArquivo);
   return pub.publicUrl;
 }
 async function cadastrar(){
+  const btn = document.getElementById('btnEnviar');
   const msg = document.getElementById('msg');
+  btn.disabled = true;
   msg.style.color = '#facc15'; msg.innerText = 'Enviando... aguarde, subindo as fotos...';
   try{
-    const nome = document.getElementById('nome').value.trim();
+    const nome_completo = document.getElementById('nome').value.trim();
     const cpf = document.getElementById('cpf').value.trim();
-    const whatsapp = document.getElementById('whatsapp').value.trim();
+    const data_nascimento = document.getElementById('nascimento').value;
     const placa = document.getElementById('placa').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const telefone = document.getElementById('whatsapp').value.trim();
     const senha = document.getElementById('senha').value.trim();
     const fCnh = document.getElementById('cnh').files[0];
     const fDoc = document.getElementById('doc').files[0];
     const fSelfie = document.getElementById('selfie').files[0];
-    if(!nome || !cpf || !whatsapp || !senha || !fCnh || !fDoc || !fSelfie){ msg.style.color='#ef4444'; msg.innerText='Preencha tudo e tire as 3 fotos.'; return; }
+    if(!nome_completo || !cpf || !data_nascimento || !placa || !email || !telefone || !senha || !fCnh || !fDoc || !fSelfie){ msg.style.color='#ef4444'; msg.innerText='Preencha tudo e tire as 3 fotos.'; btn.disabled=false; return; }
     const base = Date.now() + '_' + cpf.replace(/\D/g,'');
     const cnh_url = await uploadFoto(fCnh, base + '_cnh.jpg');
     const doc_veiculo_url = await uploadFoto(fDoc, base + '_crlv.jpg');
     const selfie_url = await uploadFoto(fSelfie, base + '_selfie.jpg');
-    const { error } = await supabaseClient.from('motoboys').insert([{ nome, cpf, whatsapp, placa, senha, cnh_url, doc_veiculo_url, selfie_url, status: 'pendente' }]);
+    const { error } = await supabaseClient.from('motoboys').insert([{ nome_completo, cpf, data_nascimento, placa, email, telefone, senha, cnh_url, doc_veiculo_url, selfie_url, status: 'pendente' }]);
     if(error) throw error;
     msg.style.color = '#22c55e'; msg.innerText = '✅ CADASTRO FEITO! Aguardando aprovação.';
     alert('Cadastro feito! Aguardando aprovação.');
@@ -64,6 +71,7 @@ async function cadastrar(){
     msg.style.color='#ef4444'; msg.innerText='ERRO: ' + e.message;
     alert('ERRO: ' + e.message);
   }
+  btn.disabled = false;
 }
 </script>
 </body>
