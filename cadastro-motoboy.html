@@ -11,7 +11,7 @@
   .box{max-width:480px;margin:0 auto;background:#1a1d24;padding:20px;border-radius:16px}
   h1{text-align:center;font-size:22px}
   label{display:block;margin:15px 0 5px;font-size:14px;color:#ccc}
-  input[type="text"],input[type="email"],input[type="date"]{width:100%;padding:14px;border-radius:10px;border:1px solid #333;background:#2a2e38;color:#fff;font-size:16px}
+  input[type="text"],input[type="email"],input[type="date"],input[type="password"],input[type="tel"]{width:100%;padding:14px;border-radius:10px;border:1px solid #333;background:#2a2e38;color:#fff;font-size:16px}
   .foto-box{background:#2a2e38;border-radius:10px;padding:12px;margin-bottom:10px}
   .foto-box p{margin:0 0 10px;font-size:13px;color:#aaa}
   .btns{display:flex;gap:10px}
@@ -21,7 +21,6 @@
   .nome-arquivo{font-size:12px;color:#22c55e;margin-top:8px;display:block;word-break:break-all}
   #btnEnviar{width:100%;padding:16px;background:#22c55e;color:#000;border:0;border-radius:12px;font-weight:bold;font-size:16px;margin-top:20px;cursor:pointer}
   #msg{text-align:center;margin-top:15px;font-weight:bold}
-  /* CORREÇÃO: não usa mais display:none, senão o Android trava */
   input[type="file"]{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
 </style>
 </head>
@@ -43,136 +42,4 @@
     <input type="text" id="placa" name="placa" placeholder="Ex: DGX-2F88" required>
 
     <label>E-mail *</label>
-    <input type="email" id="email" name="email" placeholder="seu@email.com" required>
-
-    <!-- CNH - AGORA SÃO 2 INPUTS: 1 PRA CÂMERA, 1 PRA GALERIA -->
-    <label>Foto da CNH *</label>
-    <div class="foto-box">
-      <p>Foto da frente da sua CNH</p>
-      <div class="btns">
-        <label for="foto_cnh_cam" class="btn-foto btn-cam">📷 Tirar foto agora</label>
-        <label for="foto_cnh_gal" class="btn-foto btn-gal">🖼️ Galeria</label>
-      </div>
-      <span class="nome-arquivo" id="nome_foto_cnh"></span>
-      <input type="file" id="foto_cnh_cam" accept="image/*" capture="environment">
-      <input type="file" id="foto_cnh_gal" accept="image/*">
-    </div>
-
-    <!-- CRLV -->
-    <label>Foto do documento da moto (CRLV) *</label>
-    <div class="foto-box">
-      <p>Foto do CRLV da moto</p>
-      <div class="btns">
-        <label for="foto_crlv_cam" class="btn-foto btn-cam">📷 Tirar foto agora</label>
-        <label for="foto_crlv_gal" class="btn-foto btn-gal">🖼️ Galeria</label>
-      </div>
-      <span class="nome-arquivo" id="nome_foto_crlv"></span>
-      <input type="file" id="foto_crlv_cam" accept="image/*" capture="environment">
-      <input type="file" id="foto_crlv_gal" accept="image/*">
-    </div>
-
-    <!-- SELFIE -->
-    <label>Sua selfie segurando o documento *</label>
-    <div class="foto-box">
-      <p>Segure o documento do lado do rosto</p>
-      <div class="btns">
-        <label for="foto_selfie_cam" class="btn-foto btn-cam">🤳 Tirar selfie agora</label>
-        <label for="foto_selfie_gal" class="btn-foto btn-gal">🖼️ Galeria</label>
-      </div>
-      <span class="nome-arquivo" id="nome_foto_selfie"></span>
-      <input type="file" id="foto_selfie_cam" accept="image/*" capture="user">
-      <input type="file" id="foto_selfie_gal" accept="image/*">
-    </div>
-
-    <button type="submit" id="btnEnviar">ENVIAR CADASTRO</button>
-    <div id="msg"></div>
-  </form>
-</div>
-
-<script>
-  const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
-  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-  // Guarda qual arquivo foi escolhido em cada campo
-  let arquivos = { cnh:null, crlv:null, selfie:null };
-
-  function ligar(idCam, idGal, chave, spanId){
-    const mostrar = (input) => {
-      if(input.files[0]){
-        arquivos[chave] = input.files[0];
-        document.getElementById(spanId).textContent = "✅ " + input.files[0].name;
-      }
-    };
-    document.getElementById(idCam).addEventListener('change', function(){ mostrar(this); });
-    document.getElementById(idGal).addEventListener('change', function(){ mostrar(this); });
-  }
-  ligar('foto_cnh_cam','foto_cnh_gal','cnh','nome_foto_cnh');
-  ligar('foto_crlv_cam','foto_crlv_gal','crlv','nome_foto_crlv');
-  ligar('foto_selfie_cam','foto_selfie_gal','selfie','nome_foto_selfie');
-
-  document.getElementById('cpf').addEventListener('input', function(){
-    let v = this.value.replace(/\D/g,'').slice(0,11);
-    v = v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})(\d{1,2})$/,'$1-$2');
-    this.value = v;
-  });
-
-  document.getElementById('formMotoboy').addEventListener('submit', async function(e){
-    e.preventDefault();
-    const btn = document.getElementById('btnEnviar');
-    const msg = document.getElementById('msg');
-
-    const nome = document.getElementById('nome').value.trim();
-    const cpf = document.getElementById('cpf').value.trim();
-    const data_nascimento = document.getElementById('data_nascimento').value;
-    const placa = document.getElementById('placa').value.trim().toUpperCase();
-    const email = document.getElementById('email').value.trim();
-
-    if(!nome){ alert('Preencha o Nome completo'); return; }
-    if(!cpf || !data_nascimento || !placa || !email){ alert('Preencha todos os campos'); return; }
-    if(!arquivos.cnh){ alert('Tire a foto da CNH'); return; }
-    if(!arquivos.crlv){ alert('Tire a foto do CRLV'); return; }
-    if(!arquivos.selfie){ alert('Tire a selfie'); return; }
-
-    btn.textContent = "Enviando... aguarde, subindo as fotos...";
-    btn.disabled = true;
-    msg.textContent = "";
-
-    try{
-      async function uploadFoto(file, pasta){
-        const nomeArquivo = Date.now() + '_' + pasta + '_' + file.name.replace(/\s/g,'_');
-        const { error } = await supabaseClient.storage.from('motoboys').upload(nomeArquivo, file);
-        if(error) throw error;
-        const { data } = supabaseClient.storage.from('motoboys').getPublicUrl(nomeArquivo);
-        return data.publicUrl;
-      }
-
-      const url_cnh = await uploadFoto(arquivos.cnh,'cnh');
-      const url_crlv = await uploadFoto(arquivos.crlv,'crlv');
-      const url_selfie = await uploadFoto(arquivos.selfie,'selfie');
-
-      const { error } = await supabaseClient.from('motoboys').insert([{
-        nome: nome, cpf: cpf, data_nascimento: data_nascimento, placa: placa, email: email,
-        foto_cnh: url_cnh, foto_crlv: url_crlv, foto_selfie: url_selfie,
-        status: 'pendente', created_at: new Date().toISOString()
-      }]);
-      if(error) throw error;
-
-      msg.style.color = "#22c55e";
-      msg.textContent = "✅ Cadastro enviado com sucesso! Aguarde aprovação.";
-      alert("Cadastro enviado com sucesso!");
-      this.reset();
-      arquivos = {cnh:null,crlv:null,selfie:null};
-      ['nome_foto_cnh','nome_foto_crlv','nome_foto_selfie'].forEach(i=>document.getElementById(i).textContent="");
-    }catch(err){
-      alert("ERRO: " + err.message);
-      msg.style.color = "red";
-      msg.textContent = "ERRO: " + err.message;
-    }finally{
-      btn.textContent = "ENVIAR CADASTRO";
-      btn.disabled = false;
-    }
-  });
-</script>
-</body>
-</html>
+    <input
