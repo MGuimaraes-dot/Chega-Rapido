@@ -12,18 +12,18 @@ header small{font-weight:400;font-size:13px;display:block}
 label{font-size:13px;font-weight:700;display:block;margin:14px 0 4px}
 input{width:100%;padding:13px;border:1px solid #ddd;border-radius:11px;font-size:15px}
 .btn{width:100%;padding:14px;border:0;border-radius:12px;font-weight:800;font-size:16px;cursor:pointer;margin-top:14px}
-.btn-green{background:#00a650;color:#fff}.link{color:#ff5a00;font-weight:700;text-align:center;display:block;margin-top:12px;cursor:pointer;font-size:14px}
+.btn-green{background:#00a650;color:#fff}.btn:disabled{opacity:.6}
+.link{color:#ff5a00;font-weight:700;text-align:center;display:block;margin-top:12px;cursor:pointer;font-size:14px}
 </style></head><body>
 <header>🛵 CHEGA RÁPIDO<br><small id="cidadeTopo">Entrega rápida na sua cidade</small></header>
 <div class="card">
 <div style="text-align:center"><h2 style="margin:0">Entregas sem complicação</h2><p style="color:#666">Lojista cria entrega, motoboy aceita. Rápido, simples e no celular.</p></div>
-<div class="tabs"><button id="tabLoja" class="ativo" onclick="trocar('loja')">🏪 Sou Loja</button><button id="tabMoto" onclick="trocar('moto')">🛵 Sou Motoboy</button></div>
-<div id="formLoja"><label>CNPJ da loja</label><input id="cnpj" placeholder="Só números" inputmode="numeric"><label>Senha</label><input id="senhaLoja" type="password" placeholder="Sua senha"><button class="btn btn-green" onclick="loginLoja()">Entrar como Loja →</button></div>
-<div id="formMoto" style="display:none"><label>CPF do motoboy</label><input id="cpf" placeholder="Só números - ex: 12345678900" inputmode="numeric"><label>Senha</label><input id="senhaMoto" type="password" placeholder="Sua senha"><button class="btn btn-green" onclick="loginMoto()">Entrar como Motoboy →</button><span class="link" onclick="location.href='cadastro-motoboy.html'">Ainda não tem conta? Cadastrar como motoboy</span></div>
+<div class="tabs"><button type="button" id="tabLoja" class="ativo" onclick="trocar('loja')">🏪 Sou Loja</button><button type="button" id="tabMoto" onclick="trocar('moto')">🛵 Sou Motoboy</button></div>
+<div id="formLoja"><label>CNPJ da loja</label><input id="cnpj" placeholder="Só números" inputmode="numeric"><label>Senha</label><input id="senhaLoja" type="password" placeholder="Sua senha"><button type="button" id="btnLoja" class="btn btn-green" onclick="loginLoja()">Entrar como Loja →</button></div>
+<div id="formMoto" style="display:none"><label>CPF do motoboy</label><input id="cpf" placeholder="Só números - ex: 12345678900" inputmode="numeric"><label>Senha</label><input id="senhaMoto" type="password" placeholder="Sua senha"><button type="button" id="btnMoto" class="btn btn-green" onclick="loginMoto()">Entrar como Motoboy →</button><span class="link" onclick="location.href='cadastro-motoboy.html'">Ainda não tem conta? Cadastrar como motoboy</span></div>
 <div id="erro" style="color:red;text-align:center;margin-top:10px"></div>
 </div>
 <script>
-// PEGA CIDADE PELA LOCALIZAÇÃO - sem Itaporanga fixo
 if(navigator.geolocation){
   navigator.geolocation.getCurrentPosition(async pos=>{
     try{
@@ -34,19 +34,49 @@ if(navigator.geolocation){
     }catch(e){}
   },()=>{}, {timeout:5000});
 }
-function trocar(t){ document.getElementById('formLoja').style.display=t==='loja'?'block':'none'; document.getElementById('formMoto').style.display=t==='moto'?'block':'none'; document.getElementById('tabLoja').className=t==='loja'?'ativo':''; document.getElementById('tabMoto').className=t==='moto'?'ativo':''; }
+function trocar(t){ document.getElementById('formLoja').style.display=t==='loja'?'block':'none'; document.getElementById('formMoto').style.display=t==='moto'?'block':'none'; document.getElementById('tabLoja').className=t==='loja'?'ativo':''; document.getElementById('tabMoto').className=t==='moto'?'ativo':''; document.getElementById('erro').innerText=''; }
+
+function mostrarErro(msg){ document.getElementById('erro').innerText=msg; }
+
 async function loginLoja(){
-  const cnpj=document.getElementById('cnpj').value.replace(/\D/g,''); const senha=document.getElementById('senhaLoja').value;
-  const {data}=await supabaseClient.from('lojas').select('*').eq('cnpj',cnpj).eq('senha',senha).single();
-  if(!data) return document.getElementById('erro').innerText='CNPJ ou senha inválidos';
-  localStorage.setItem('loja', JSON.stringify(data)); location.href='loja.html';
+  const btn=document.getElementById('btnLoja');
+  const erroEl=document.getElementById('erro');
+  erroEl.innerText='';
+  const cnpj=document.getElementById('cnpj').value.replace(/\D/g,''); 
+  const senha=document.getElementById('senhaLoja').value;
+  if(!cnpj || !senha) return mostrarErro('Preencha CNPJ e senha');
+  if(typeof supabaseClient==='undefined' && typeof window.supabaseClient==='undefined') return mostrarErro('Erro de conexão. Recarregue a página.');
+  const client = window.supabaseClient || supabaseClient;
+  btn.disabled=true; btn.innerText='Entrando...';
+  try{
+    const {data, error} = await client.from('lojas').select('*').eq('cnpj',cnpj).eq('senha',senha).maybeSingle();
+    if(error) throw error;
+    if(!data) return mostrarErro('CNPJ ou senha inválidos');
+    localStorage.setItem('loja', JSON.stringify(data)); 
+    location.href='loja.html';
+  }catch(e){ console.error(e); mostrarErro('Erro ao entrar: '+(e.message||'tente novamente')); }
+  finally{ btn.disabled=false; btn.innerText='Entrar como Loja →'; }
 }
+
 async function loginMoto(){
-  const cpf=document.getElementById('cpf').value.replace(/\D/g,''); const senha=document.getElementById('senhaMoto').value;
-  const {data}=await supabaseClient.from('motoboys').select('*').eq('cpf',cpf).eq('senha',senha).single();
-  if(!data) return document.getElementById('erro').innerText='CPF ou senha inválidos';
-  if(data.status==='pendente') return document.getElementById('erro').innerText='⏳ Seu cadastro está em análise. Aguarde a aprovação. Te avisamos no WhatsApp.';
-  if(data.status==='rejeitado') return document.getElementById('erro').innerText='❌ Cadastro não aprovado. Fale com a central.';
-  localStorage.setItem('motoboy', JSON.stringify(data)); location.href='motoboy.html';
+  const btn=document.getElementById('btnMoto');
+  const erroEl=document.getElementById('erro');
+  erroEl.innerText='';
+  const cpf=document.getElementById('cpf').value.replace(/\D/g,''); 
+  const senha=document.getElementById('senhaMoto').value;
+  if(!cpf || !senha) return mostrarErro('Preencha CPF e senha');
+  if(typeof window.supabaseClient==='undefined' && typeof supabaseClient==='undefined') return mostrarErro('Erro de conexão. Recarregue a página.');
+  const client = window.supabaseClient || supabaseClient;
+  btn.disabled=true; btn.innerText='Entrando...';
+  try{
+    const {data, error} = await client.from('motoboys').select('*').eq('cpf',cpf).eq('senha',senha).maybeSingle();
+    if(error) throw error;
+    if(!data) return mostrarErro('CPF ou senha inválidos');
+    if(data.status==='pendente') return mostrarErro('⏳ Seu cadastro está em análise. Aguarde a aprovação. Te avisamos no WhatsApp.');
+    if(data.status==='rejeitado') return mostrarErro('❌ Cadastro não aprovado. Fale com a central.');
+    localStorage.setItem('motoboy', JSON.stringify(data)); 
+    location.href='motoboy.html';
+  }catch(e){ console.error(e); mostrarErro('Erro ao entrar: '+(e.message||'tente novamente')); }
+  finally{ btn.disabled=false; btn.innerText='Entrar como Motoboy →'; }
 }
 </script></body></html>
