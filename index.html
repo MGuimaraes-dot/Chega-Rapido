@@ -2,7 +2,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chega Rápido</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/supabase.js"></script>
+<script src="supabase.js"></script>
 <style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
 header{background:#ff5a00;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:22px}
 header small{font-weight:400;font-size:13px;display:block}
@@ -35,17 +35,14 @@ if(navigator.geolocation){
   },()=>{}, {timeout:5000});
 }
 function trocar(t){ document.getElementById('formLoja').style.display=t==='loja'?'block':'none'; document.getElementById('formMoto').style.display=t==='moto'?'block':'none'; document.getElementById('tabLoja').className=t==='loja'?'ativo':''; document.getElementById('tabMoto').className=t==='moto'?'ativo':''; document.getElementById('erro').innerText=''; }
-
 function mostrarErro(msg){ document.getElementById('erro').innerText=msg; }
-
 async function loginLoja(){
   const btn=document.getElementById('btnLoja');
-  const erroEl=document.getElementById('erro');
-  erroEl.innerText='';
+  document.getElementById('erro').innerText='';
   const cnpj=document.getElementById('cnpj').value.replace(/\D/g,''); 
   const senha=document.getElementById('senhaLoja').value;
   if(!cnpj || !senha) return mostrarErro('Preencha CNPJ e senha');
-  if(typeof supabaseClient==='undefined' && typeof window.supabaseClient==='undefined') return mostrarErro('Erro de conexão. Recarregue a página.');
+  if(typeof window.supabaseClient==='undefined' && typeof supabaseClient==='undefined') return mostrarErro('Erro de conexão. Recarregue a página.');
   const client = window.supabaseClient || supabaseClient;
   btn.disabled=true; btn.innerText='Entrando...';
   try{
@@ -57,11 +54,9 @@ async function loginLoja(){
   }catch(e){ console.error(e); mostrarErro('Erro ao entrar: '+(e.message||'tente novamente')); }
   finally{ btn.disabled=false; btn.innerText='Entrar como Loja →'; }
 }
-
 async function loginMoto(){
   const btn=document.getElementById('btnMoto');
-  const erroEl=document.getElementById('erro');
-  erroEl.innerText='';
+  document.getElementById('erro').innerText='';
   const cpf=document.getElementById('cpf').value.replace(/\D/g,''); 
   const senha=document.getElementById('senhaMoto').value;
   if(!cpf || !senha) return mostrarErro('Preencha CPF e senha');
