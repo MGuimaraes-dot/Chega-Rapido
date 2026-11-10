@@ -39,17 +39,22 @@ function mostrarErro(msg){ document.getElementById('erro').innerText=msg; }
 async function loginLoja(){
   const btn=document.getElementById('btnLoja');
   document.getElementById('erro').innerText='';
-  const cnpj=document.getElementById('cnpj').value.replace(/\D/g,''); 
+  const cnpj=soNumeros(document.getElementById('cnpj').value);
   const senha=document.getElementById('senhaLoja').value;
   if(!cnpj || !senha) return mostrarErro('Preencha CNPJ e senha');
-  if(typeof window.supabaseClient==='undefined' && typeof supabaseClient==='undefined') return mostrarErro('Erro de conexão. Recarregue a página.');
-  const client = window.supabaseClient || supabaseClient;
+  const client = window.supabaseClient;
   btn.disabled=true; btn.innerText='Entrando...';
   try{
-    const {data, error} = await client.from('lojas').select('*').eq('cnpj',cnpj).eq('senha',senha).maybeSingle();
+    let {data, error} = await client.from('lojas').select('*').eq('cnpj',cnpj).eq('senha',senha).maybeSingle();
+    if(!data && !error){
+      // Compatibilidade: CNPJ antigo com máscara
+      const cnpjMask = cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,'$1.$2.$3/$4-$5');
+      const r2 = await client.from('lojas').select('*').eq('cnpj',cnpjMask).eq('senha',senha).maybeSingle();
+      data = r2.data; error = r2.error;
+    }
     if(error) throw error;
     if(!data) return mostrarErro('CNPJ ou senha inválidos');
-    localStorage.setItem('loja', JSON.stringify(data)); 
+    setLoja(data);
     location.href='loja.html';
   }catch(e){ console.error(e); mostrarErro('Erro ao entrar: '+(e.message||'tente novamente')); }
   finally{ btn.disabled=false; btn.innerText='Entrar como Loja →'; }
@@ -57,19 +62,24 @@ async function loginLoja(){
 async function loginMoto(){
   const btn=document.getElementById('btnMoto');
   document.getElementById('erro').innerText='';
-  const cpf=document.getElementById('cpf').value.replace(/\D/g,''); 
+  const cpf=soNumeros(document.getElementById('cpf').value);
   const senha=document.getElementById('senhaMoto').value;
   if(!cpf || !senha) return mostrarErro('Preencha CPF e senha');
-  if(typeof window.supabaseClient==='undefined' && typeof supabaseClient==='undefined') return mostrarErro('Erro de conexão. Recarregue a página.');
-  const client = window.supabaseClient || supabaseClient;
+  const client = window.supabaseClient;
   btn.disabled=true; btn.innerText='Entrando...';
   try{
-    const {data, error} = await client.from('motoboys').select('*').eq('cpf',cpf).eq('senha',senha).maybeSingle();
+    let {data, error} = await client.from('motoboys').select('*').eq('cpf',cpf).eq('senha',senha).maybeSingle();
+    if(!data && !error){
+      const cpfMask = cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4');
+      const r2 = await client.from('motoboys').select('*').eq('cpf',cpfMask).eq('senha',senha).maybeSingle();
+      data = r2.data; error = r2.error;
+    }
     if(error) throw error;
     if(!data) return mostrarErro('CPF ou senha inválidos');
-    if(data.status==='pendente') return mostrarErro('⏳ Seu cadastro está em análise. Aguarde a aprovação. Te avisamos no WhatsApp.');
+    if(data.status==='pendente' || (data.status==null && data.aprovado===false)) return mostrarErro('⏳ Seu cadastro está em análise. Aguarde a aprovação. Te avisamos no WhatsApp.');
     if(data.status==='rejeitado') return mostrarErro('❌ Cadastro não aprovado. Fale com a central.');
-    localStorage.setItem('motoboy', JSON.stringify(data)); 
+    if(data.status==='bloqueado' || data.bloqueado===true) return mostrarErro('🔴 Cadastro bloqueado. Fale com a central.');
+    setMotoboy(data);
     location.href='motoboy.html';
   }catch(e){ console.error(e); mostrarErro('Erro ao entrar: '+(e.message||'tente novamente')); }
   finally{ btn.disabled=false; btn.innerText='Entrar como Motoboy →'; }
