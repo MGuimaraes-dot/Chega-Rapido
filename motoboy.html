@@ -10,13 +10,44 @@ header{background:#00a650;color:#fff;padding:16px;text-align:center;font-weight:
 .btn-green{background:#00a650;color:#fff}.btn-orange{background:#ff5a00;color:#fff}.btn-gray{background:#eee}.btn-blue{background:#1976d2;color:#fff}
 .item{border:1px solid #eee;border-radius:12px;padding:14px;margin-top:10px}
 .item-aceita{border:2px solid #00a650;background:#f0fdf4}
-input{width:100%;padding:13px;border:1px solid #ddd;border-radius:11px;font-size:16px;margin-top:8px;text-align:center;letter-spacing:4px;font-weight:900}
+input{width:100%;padding:13px;border:1px solid #ddd;border-radius:11px;font-size:16px;margin-top:8px}
+input.codigo{letter-spacing:4px;font-weight:900;text-align:center}
 h3{margin:20px 0 0}
+.status-box{padding:14px;border-radius:12px;text-align:center;font-weight:800;font-size:15px;margin-top:12px}
+.status-analise{background:#fef3c7;color:#92400e;border:1.5px solid #fcd34d}
+.status-aprovado{background:#dcfce7;color:#166534;border:1.5px solid #86efac}
+.status-bloqueado{background:#fee2e2;color:#991b1b;border:1.5px solid #fca5a5}
+.edit-box{display:none;background:#f9fafb;border:1px solid #eee;border-radius:12px;padding:14px;margin-top:10px}
+.edit-box label{font-size:13px;color:#666;font-weight:700}
 </style></head><body>
 <header>🛵 CHEGA RÁPIDO - MOTOBOY</header>
 <div class="card">
 <h2 id="nomeMoto">Olá, Motoboy</h2><p id="cpfMoto" style="color:#666;margin:0"></p>
 <p id="placaMoto" style="color:#666;margin:4px 0 0"></p>
+<p id="telMoto" style="color:#666;margin:4px 0 0"></p>
+
+<div id="statusBox" class="status-box status-analise">⏳ Carregando seu status...</div>
+
+<button class="btn btn-gray" onclick="mostrarEditar()">✏️ Editar meus dados</button>
+<div id="boxEditar" class="edit-box">
+  <label>Nome completo</label>
+  <input id="editNome" type="text">
+  <label>Telefone / WhatsApp</label>
+  <input id="editTelefone" type="text">
+  <label>Placa da moto</label>
+  <input id="editPlaca" type="text">
+  <button class="btn btn-green" onclick="salvarEdicao()">💾 Salvar alterações</button>
+  <button class="btn btn-gray" onclick="document.getElementById('boxEditar').style.display='none'">Fechar</button>
+</div>
+
+<button class="btn btn-gray" onclick="mostrarSenha()">🔑 Trocar senha</button>
+<div id="boxSenha" class="edit-box">
+  <label>Nova senha</label>
+  <input id="novaSenha" type="password" placeholder="Digite a nova senha">
+  <button class="btn btn-green" onclick="salvarSenha()">💾 Trocar senha</button>
+  <button class="btn btn-gray" onclick="document.getElementById('boxSenha').style.display='none'">Fechar</button>
+</div>
+
 <button class="btn btn-green" onclick="carregar()">🔄 Atualizar Entregas</button>
 
 <h3>📦 Minhas entregas aceitas - finalizar com código</h3>
@@ -29,14 +60,88 @@ h3{margin:20px 0 0}
 </div>
 <script>
 const moto=getMotoboy(); if(!moto) location.href='index.html';
+let dadosAtual = moto;
 document.getElementById('nomeMoto').innerText='Olá, '+ (moto.nome_completo || moto.nome || 'Motoboy');
 document.getElementById('cpfMoto').innerText='CPF: '+moto.cpf;
-if(moto.placa_moto) document.getElementById('placaMoto').innerText='Placa: '+moto.placa_moto;
+if(moto.placa_moto || moto.placa) document.getElementById('placaMoto').innerText='Placa: '+(moto.placa_moto || moto.placa);
+if(moto.telefone || moto.whatsapp) document.getElementById('telMoto').innerText='Whats: '+(moto.telefone || moto.whatsapp);
+
+async function verificarStatus(){
+  const {data} = await supabaseClient.from('motoboys').select('*').eq('id', moto.id).single();
+  if(data){
+    dadosAtual = data;
+    // Atualiza dados na tela
+    document.getElementById('nomeMoto').innerText='Olá, '+ (data.nome_completo || data.nome || 'Motoboy');
+    if(data.placa_moto || data.placa) document.getElementById('placaMoto').innerText='Placa: '+(data.placa_moto || data.placa);
+    if(data.telefone || data.whatsapp) document.getElementById('telMoto').innerText='Whats: '+(data.telefone || data.whatsapp);
+    // Atualiza o localStorage pra ficar igual ao banco
+    localStorage.setItem('motoboy', JSON.stringify(data));
+  }
+  const box = document.getElementById('statusBox');
+  if(dadosAtual.bloqueado){
+    box.className='status-box status-bloqueado';
+    box.innerText='🔴 BLOQUEADO - Fale com a administração do Chega Rápido';
+    return 'bloqueado';
+  }
+  if(dadosAtual.aprovado === true){
+    box.className='status-box status-aprovado';
+    box.innerText='🟢 APROVADO - Você já pode aceitar entregas!';
+    return 'aprovado';
+  } else {
+    box.className='status-box status-analise';
+    box.innerText='🟡 EM ANÁLISE - Seu cadastro está sendo analisado. Aguarde aprovação para começar a aceitar entregas.';
+    return 'analise';
+  }
+}
+
+function mostrarEditar(){
+  document.getElementById('boxSenha').style.display='none';
+  const b=document.getElementById('boxEditar');
+  b.style.display = b.style.display==='block' ? 'none' : 'block';
+  document.getElementById('editNome').value = dadosAtual.nome_completo || dadosAtual.nome || '';
+  document.getElementById('editTelefone').value = dadosAtual.telefone || dadosAtual.whatsapp || '';
+  document.getElementById('editPlaca').value = dadosAtual.placa_moto || dadosAtual.placa || '';
+}
+async function salvarEdicao(){
+  const nome=document.getElementById('editNome').value.trim();
+  const telefone=document.getElementById('editTelefone').value.trim();
+  const placa=document.getElementById('editPlaca').value.trim().toUpperCase();
+  if(!nome || !telefone || !placa) return alert('Preencha nome, telefone e placa');
+  const {error}=await supabaseClient.from('motoboys').update({nome:nome, nome_completo:nome, telefone:telefone, whatsapp:telefone, placa:placa, placa_moto:placa}).eq('id', moto.id);
+  if(error) return alert('Erro: '+error.message);
+  alert('✅ Dados atualizados!');
+  document.getElementById('boxEditar').style.display='none';
+  await verificarStatus();
+}
+function mostrarSenha(){
+  document.getElementById('boxEditar').style.display='none';
+  const b=document.getElementById('boxSenha');
+  b.style.display = b.style.display==='block' ? 'none' : 'block';
+}
+async function salvarSenha(){
+  const nova=document.getElementById('novaSenha').value;
+  if(!nova || nova.length < 4) return alert('A senha precisa ter pelo menos 4 caracteres');
+  const {error}=await supabaseClient.from('motoboys').update({senha:nova}).eq('id', moto.id);
+  if(error) return alert('Erro: '+error.message);
+  alert('✅ Senha trocada com sucesso! Use a nova senha no próximo login.');
+  document.getElementById('novaSenha').value='';
+  document.getElementById('boxSenha').style.display='none';
+}
 
 async function carregar(){
+  const statusAtual = await verificarStatus();
+  if(statusAtual !== 'aprovado'){
+    document.getElementById('minhas').innerHTML='<p>⏳ Você ainda está em análise. Assim que for aprovado, suas entregas vão aparecer aqui.</p>';
+    if(statusAtual === 'bloqueado'){
+      document.getElementById('lista').innerHTML='<p>🔴 Sua conta está bloqueada. Fale com a administração.</p>';
+    } else {
+      document.getElementById('lista').innerHTML='<p>🟡 Aguarde sua aprovação para ver as entregas disponíveis.</p>';
+    }
+    return;
+  }
   // 1 - Minhas aceitas
   const {data: minhas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', moto.id).eq('status','aceita').order('created_at',{ascending:false});
-  document.getElementById('minhas').innerHTML=(minhas||[]).map(e=>`<div class="item item-aceita"><b>${e.cliente_nome}</b> - R$ ${e.valor}<br>${e.endereco} - ${e.bairro||''} - ${e.cidade||''}<br><small>${e.observacao||''}</small><br><br><b>🔑 Peça o código para o cliente:</b><input id="codigo-${e.id}" placeholder="0000" maxlength="4" inputmode="numeric"><button class="btn btn-blue" onclick="finalizar('${e.id}')">✅ Confirmar entrega com código</button></div>`).join('')||'<p>Nenhuma entrega aceita ainda. Aceite uma abaixo.</p>';
+  document.getElementById('minhas').innerHTML=(minhas||[]).map(e=>`<div class="item item-aceita"><b>${e.cliente_nome}</b> - R$ ${e.valor}<br>${e.endereco} - ${e.bairro||''} - ${e.cidade||''}<br><small>${e.observacao||''}</small><br><br><b>🔑 Peça o código para o cliente:</b><input class="codigo" id="codigo-${e.id}" placeholder="0000" maxlength="4" inputmode="numeric"><button class="btn btn-blue" onclick="finalizar('${e.id}')">✅ Confirmar entrega com código</button></div>`).join('')||'<p>Nenhuma entrega aceita ainda. Aceite uma abaixo.</p>';
 
   // 2 - Pendentes
   const {data,error}=await supabaseClient.from('entregas').select('*').eq('status','pendente').order('created_at',{ascending:false});
@@ -44,6 +149,8 @@ async function carregar(){
   document.getElementById('lista').innerHTML=(data||[]).map(e=>`<div class="item"><b>${e.cliente_nome}</b> - R$ ${e.valor}<br>${e.endereco} - ${e.bairro||''} - ${e.cidade||''}<br><small>${e.observacao||''}</small><br><button class="btn btn-orange" onclick="aceitar('${e.id}')">Aceitar Entrega</button></div>`).join('')||'<p>Nenhuma entrega pendente</p>';
 }
 async function aceitar(id){
+  const s = await verificarStatus();
+  if(s !== 'aprovado') return alert('Você ainda está EM ANÁLISE. Aguarde sua aprovação para aceitar entregas.');
   const {error}=await supabaseClient.from('entregas').update({status:'aceita',motoboy_id:moto.id}).eq('id',id).eq('status','pendente');
   if(error) alert(error.message); else {alert('Entrega aceita! Vá buscar. Lembre: só finalize com o código que o cliente falar.');carregar();}
 }
