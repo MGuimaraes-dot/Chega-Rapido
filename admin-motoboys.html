@@ -3,69 +3,62 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Admin - Chega Rápido</title>
+<title>Admin - EntreAqui</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase.js"></script>
 <style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
 header{background:#111;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:20px}
-.card{max-width:560px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
-.tabs{display:flex;background:#f1f1f1;border-radius:12px;padding:4px;margin-bottom:12px}.tabs button{flex:1;padding:11px;border:0;border-radius:9px;font-weight:800;cursor:pointer;background:transparent}
+.card{max-width:580px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.tabs{display:flex;background:#f1f1f1;border-radius:12px;padding:4px;margin-bottom:14px}.tabs button{flex:1;padding:11px;border:0;border-radius:9px;font-weight:800;cursor:pointer;background:transparent;font-size:13px}
 .tabs button.ativo{background:#111;color:#fff}
 label{font-size:13px;font-weight:700;display:block;margin:12px 0 4px}
-input,select{width:100%;padding:13px;border:1px solid #ddd;border-radius:11px;font-size:15px}
-.btn{width:100%;padding:13px;border:0;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;margin-top:10px}
-.btn-green{background:#00a650;color:#fff}.btn-red{background:#fee2e2;color:#991b1b}.btn-gray{background:#eee}.btn-dark{background:#111;color:#fff}.btn-blue{background:#1976d2;color:#fff}
-.item{border:1px solid #eee;border-radius:12px;padding:12px;margin-top:10px}
-.badge{padding:4px 8px;border-radius:20px;font-size:12px;font-weight:700;background:#fff3e0;color:#e65100}
-.small{font-size:12px;color:#666}
-.fotos a{margin-right:8px;font-size:13px;font-weight:700}
+input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;font-size:14px}
+.btn{width:100%;padding:12px;border:0;border-radius:12px;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px}
+.btn-green{background:#00a650;color:#fff}.btn-red{background:#fee2e2;color:#991b1b}.btn-gray{background:#eee;color:#333}.btn-dark{background:#111;color:#fff}.btn-blue{background:#1976d2;color:#fff}
+.item{border:1px solid #eee;border-radius:12px;padding:12px;margin-top:10px;background:#fafafa}
+.badge{padding:4px 8px;border-radius:20px;font-size:11px;font-weight:700;background:#fff3e0;color:#e65100}
+.small{font-size:12px;color:#666;line-height:1.4}
+.fotos a{margin-right:12px;font-size:12px;font-weight:700;color:#1976d2}
 </style>
 </head>
 <body>
-<header>🛵 CHEGA RÁPIDO - ADMIN</header>
+<header>📦 ENTREAQUI - ADMIN</header>
 <div class="card">
 <div class="tabs">
 <button type="button" id="tabMoto" class="ativo" onclick="trocarAba('moto')">🛵 Motoboys</button>
 <button type="button" id="tabLoja" onclick="trocarAba('loja')">🏪 Lojas</button>
-<button type="button" id="tabRel" onclick="trocarAba('rel')">📊 Relatórios</button>
+<button type="button" id="tabRel" onclick="trocarAba('rel')">📊 Financeiro</button>
 </div>
 
 <!-- ABA MOTOBOYS -->
 <div id="abaMoto">
-<label>🌧️ Está chovendo? (liga +R$ 2 por corrida para o motoboy)</label>
+<label>🌧️ Está chovendo? (Adiciona R$ 2,00 por corrida para o motoboy)</label>
 <button id="btnChuva" class="btn btn-gray" onclick="alternarChuva()">Carregando...</button>
-<h3>🟡 Motoboys pendentes - para aprovar</h3>
-<div id="pendentes"><p>Carregando...</p></div>
-<h3>✅ Motoboys aprovados</h3>
-<div id="aprovados"></div>
+<h3>🟡 Motoboys Pendentes</h3>
+<div id="pendentesMoto"><p class="small">Carregando...</p></div>
+<h3>✅ Motoboys Aprovados</h3>
+<div id="aprovadosMoto"></div>
 <h3>🔴 Bloqueados / Rejeitados</h3>
-<div id="bloqueados"></div>
-<button class="btn btn-gray" onclick="carregarTudo()">🔄 Atualizar</button>
+<div id="bloqueadosMoto"></div>
+<button class="btn btn-gray" onclick="carregarTudo()">🔄 Atualizar Dados</button>
 </div>
 
 <!-- ABA LOJAS -->
 <div id="abaLoja" style="display:none">
-<h3>🏪 Cadastrar nova loja</h3>
-<label>Nome fantasia *</label><input id="lojaNome" placeholder="Ex: Pizzaria do Zé">
-<label>Razão social</label><input id="lojaRazao" placeholder="Ex: Pizzaria do Zé LTDA">
-<label>CNPJ * - só números</label><input id="lojaCnpj" placeholder="Só números" inputmode="numeric">
-<label>Endereço de retirada * - de onde o motoboy vai buscar</label><input id="lojaEndereco" placeholder="Ex: Rua das Flores, 123 - Centro - São José dos Campos">
-<label>Cidade</label><input id="lojaCidade" placeholder="Ex: São José dos Campos">
-<label>Telefone / WhatsApp</label><input id="lojaTel" placeholder="Ex: (12) 99999-9999">
-<label>Senha de acesso * - essa que você vai enviar para a loja</label><input id="lojaSenha" placeholder="Crie a senha da loja">
-<button class="btn btn-green" onclick="cadastrarLoja()">+ Cadastrar Loja</button>
-<div id="msgLoja" style="text-align:center;margin-top:10px;font-weight:700"></div>
-<h3>📋 Lojas cadastradas</h3>
-<div id="listaLojas"></div>
+<h3>🟡 Lojas Pendentes - para aprovar</h3>
+<div id="pendentesLoja"><p class="small">Carregando...</p></div>
+<h3>🏪 Lojas Cadastradas e Aprovadas</h3>
+<div id="aprovadasLoja"></div>
+<button class="btn btn-gray" onclick="carregarTudo()">🔄 Atualizar Lojas</button>
 </div>
 
-<!-- ABA RELATORIOS -->
+<!-- ABA RELATORIOS / FINANCEIRO -->
 <div id="abaRel" style="display:none">
-<h3>📊 Relatório de entregas</h3>
-<label>Data início</label><input type="date" id="dataIni">
-<label>Data fim</label><input type="date" id="dataFim">
-<button class="btn btn-green" onclick="relatorio()">Gerar Relatório</button>
-<div id="rel"></div>
+<h3>📊 Fechamento Financeiro</h3>
+<label>Data Início</label><input type="date" id="dataIni">
+<label>Data Fim</label><input type="date" id="dataFim">
+<button class="btn btn-green" onclick="relatorio()">Gerar Relatório Consolidado</button>
+<div id="rel" style="margin-top:14px;font-size:14px"></div>
 </div>
 </div>
 
@@ -78,18 +71,20 @@ function trocarAba(t){
   document.getElementById('tabLoja').className = t==='loja'?'ativo':'';
   document.getElementById('tabRel').className = t==='rel'?'ativo':'';
 }
+
 async function carregarChuva(){
   const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
   const b=document.getElementById('btnChuva');
   if(!b) return;
-  b.innerText = data?.chovendo ? '🌧️ SIM - Está chovendo (+R$ 2 por corrida)' : '☀️ NÃO - Sem chuva';
-  b.style.background = data?.chovendo ? '#3b82f6' : '#eee';
-  b.style.color = data?.chovendo ? '#fff' : '#000';
+  const chov = data?.chovendo;
+  b.innerText = chov ? '🌧️ SIM - Chovendo (+R$ 2,00 por corrida)' : '☀️ NÃO - Sem chuva';
+  b.style.background = chov ? '#3b82f6' : '#eee';
+  b.style.color = chov ? '#fff' : '#000';
 }
+
 async function alternarChuva(){
   const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
   const novo = !(data?.chovendo);
-  // Se não existir linha de config, cria
   if(!data){
     await supabaseClient.from('config').insert([{id:1, chovendo:novo}]);
   } else {
@@ -97,111 +92,17 @@ async function alternarChuva(){
   }
   carregarChuva();
 }
+
 async function carregarTudo(){
-  // Pendentes
-  const {data: pend} = await supabaseClient.from('motoboys').select('*').eq('status','pendente').order('created_at',{ascending:true});
-  document.getElementById('pendentes').innerHTML=(pend||[]).map(m=>`
+  // MOTOBOYS PENDENTES
+  const {data: pendM} = await supabaseClient.from('motoboys').select('*').eq('status','pendente').order('created_at',{ascending:true});
+  document.getElementById('pendentesMoto').innerHTML=(pendM||[]).map(m=>`
     <div class="item"><b>${m.nome_completo||m.nome||''}</b><br>
-    <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''} | Nasc: ${m.data_nascimento||''}<br>E-mail: ${m.email||''} | Whats: ${m.telefone||m.whatsapp||''}</span><br>
-    <div class="fotos"><a href="${m.foto_cnh||m.foto_documento_url||'#'}" target="_blank">📄 Ver CNH</a><a href="${m.foto_crlv||'#'}" target="_blank">📄 Ver CRLV</a><a href="${m.foto_selfie||m.foto_selfie_url||'#'}" target="_blank">🤳 Ver Selfie</a></div>
-    <button class="btn btn-green" onclick="aprovar('${m.id}','${(m.telefone||m.whatsapp||'').replace(/\D/g,'')}')">✅ Aprovar</button>
-    <button class="btn btn-red" onclick="reprovar('${m.id}')">❌ Reprovar</button>
-    </div>`).join('')||'<p>Nenhum motoboy pendente</p>';
-  // Aprovados
-  const {data: apr} = await supabaseClient.from('motoboys').select('*').eq('status','aprovado').order('created_at',{ascending:false});
-  document.getElementById('aprovados').innerHTML=(apr||[]).map(m=>`
-    <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">APROVADO ${m.online?'🟢 ONLINE':'⚪ OFFLINE'}</span><br>
-    <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''} | Whats: ${m.telefone||m.whatsapp||''}</span><br>
-    <button class="btn btn-red" onclick="bloquear('${m.id}')">🔴 Bloquear</button></div>`).join('')||'<p>Nenhum aprovado ainda</p>';
-  // Bloqueados / Rejeitados
-  const {data: blo} = await supabaseClient.from('motoboys').select('*').in('status',['bloqueado','rejeitado']).order('created_at',{ascending:false});
-  document.getElementById('bloqueados').innerHTML=(blo||[]).map(m=>`
-    <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.status}</span><br>
-    <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''}</span><br>
-    <button class="btn btn-green" onclick="desbloquear('${m.id}')">✅ Desbloquear / Aprovar de novo</button></div>`).join('')||'<p>Nenhum bloqueado</p>';
-  carregarLojas();
-  carregarChuva();
-}
-async function aprovar(id, tel){
-  // CORREÇÃO: muda status + aprovado + bloqueado juntos, senão o login não destrava
-  const {error} = await supabaseClient.from('motoboys').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
-  if(error) return alert('Erro: '+error.message);
-  if(tel){
-    const msg = encodeURIComponent('✅ Você foi APROVADO no Chega Rápido! Seu login é seu CPF e sua senha que você cadastrou. Entre no app e clique em Ficar Online para receber entregas!');
-    window.open(`https://wa.me/55${tel}?text=${msg}`,'_blank');
-  }
-  alert('Aprovado! WhatsApp aberto para você enviar.');
-  carregarTudo();
-}
-async function reprovar(id){
-  if(!confirm('Reprovar esse motoboy?')) return;
-  await supabaseClient.from('motoboys').update({status:'rejeitado', aprovado:false, bloqueado:false}).eq('id',id);
-  alert('Reprovado'); carregarTudo();
-}
-async function bloquear(id){
-  if(!confirm('Bloquear esse motoboy? Ele não vai conseguir logar.')) return;
-  await supabaseClient.from('motoboys').update({status:'bloqueado', aprovado:false, bloqueado:true, online:false}).eq('id',id);
-  carregarTudo();
-}
-async function desbloquear(id){
-  await supabaseClient.from('motoboys').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
-  alert('Desbloqueado e aprovado'); carregarTudo();
-}
-// LOJAS
-async function cadastrarLoja(){
-  const nome = document.getElementById('lojaNome').value.trim();
-  const razao = document.getElementById('lojaRazao').value.trim();
-  const cnpj = soNumeros(document.getElementById('lojaCnpj').value);
-  const endereco = document.getElementById('lojaEndereco').value.trim();
-  const cidade = document.getElementById('lojaCidade').value.trim();
-  const tel = document.getElementById('lojaTel').value.trim();
-  const senha = document.getElementById('lojaSenha').value;
-  const msg = document.getElementById('msgLoja');
-  if(!nome||!cnpj||!endereco||!senha){ msg.style.color='red'; msg.innerText='Preencha nome, CNPJ, endereço de retirada e senha'; return; }
-  const {error} = await supabaseClient.from('lojas').insert([{nome:nome, nome_fantasia:nome, razao_social:razao||nome, cnpj:cnpj, endereco:endereco, endereco_retirada:endereco, cidade:cidade, telefone:tel, whatsapp:tel, senha:senha}]);
-  if(error){ msg.style.color='red'; msg.innerText='Erro: '+error.message; return; }
-  msg.style.color='green'; msg.innerText='✅ Loja cadastrada! Envie para ela: Login = CNPJ '+cnpj+' | Senha = '+senha;
-  ['lojaNome','lojaRazao','lojaCnpj','lojaEndereco','lojaCidade','lojaTel','lojaSenha'].forEach(i=>document.getElementById(i).value='');
-  carregarLojas();
-}
-async function carregarLojas(){
-  const {data} = await supabaseClient.from('lojas').select('*').order('created_at',{ascending:false});
-  document.getElementById('listaLojas').innerHTML=(data||[]).map(l=>`
-    <div class="item"><b>${l.nome_fantasia||l.nome||''}</b><br>
-    <span class="small">CNPJ: ${l.cnpj} | Cidade: ${l.cidade||''}<br>Retirada: ${l.endereco_retirada||l.endereco||''}<br>Whats: ${l.telefone||l.whatsapp||''}</span><br>
-    <button class="btn btn-red" onclick="excluirLoja('${l.id}','${(l.nome_fantasia||l.nome||'').replace(/'/g,'')}')">🗑️ Excluir loja</button></div>`).join('')||'<p>Nenhuma loja</p>';
-}
-async function excluirLoja(id, nome){
-  if(!confirm('Excluir a loja '+nome+'? Isso não apaga as entregas antigas dela.')) return;
-  const {error} = await supabaseClient.from('lojas').delete().eq('id',id);
-  if(error) return alert('Erro: '+error.message);
-  alert('Loja excluída'); carregarLojas();
-}
-// RELATORIOS
-async function relatorio(){
-  const ini=document.getElementById('dataIni').value, fim=document.getElementById('dataFim').value;
-  let q = supabaseClient.from('entregas').select('*').eq('status','entregue');
-  if(ini) q=q.gte('entregue_em',ini+'T00:00:00');
-  if(fim) q=q.lte('entregue_em',fim+'T23:59:59');
-  const {data, error} = await q;
-  if(error) return document.getElementById('rel').innerHTML='Erro: '+error.message;
-  const porMotoboy = {};
-  const porLoja = {};
-  const porPlaca = {};
-  (data||[]).forEach(e=>{
-    const t = e.entregue_em && e.aceita_em ? Math.round((new Date(e.entregue_em)-new Date(e.aceita_em))/60000) : 0;
-    const keyM = e.motoboy_id||'sem-motoboy';
-    porMotoboy[keyM] = porMotoboy[keyM]||{q:0, tempo:0, valor:0}; porMotoboy[keyM].q++; porMotoboy[keyM].tempo+=t; porMotoboy[keyM].valor+=(e.valor_motoboy||0);
-    const keyL = e.loja_nome||e.loja_id||'loja';
-    porLoja[keyL] = porLoja[keyL]||{q:0, valor:0}; porLoja[keyL].q++; porLoja[keyL].valor+=(e.valor||0);
-  });
-  let html = `<h4>Total entregues no período: ${(data||[]).length}</h4>`;
-  html += '<b>Por motoboy (tempo médio / valor a receber):</b><br>' + Object.entries(porMotoboy).map(([id,v])=>`Motoboy ${id.slice(0,8)}: ${v.q} entregas, tempo médio ${Math.round(v.tempo/v.q)} min, R$ ${v.valor.toFixed(2)}`).join('<br>');
-  html += '<br><br><b>Valor a receber por lojista (valor total das entregas):</b><br>' + Object.entries(porLoja).map(([id,v])=>`${id}: ${v.q} entregas, R$ ${v.valor.toFixed(2)} a receber`).join('<br>');
-  html += '<br><br><span class="small">Tempo = da hora que aceitou até a hora que entregou com código.</span>';
-  document.getElementById('rel').innerHTML = html;
-}
-carregarTudo();
-</script>
-</body>
-</html>
+    <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''} | Pix: ${m.chave_pix||'Não informada'}</span><br>
+    <div class="fotos"><a href="${m.foto_cnh||m.foto_documento_url||'#'}" target="_blank">📄 CNH</a><a href="${m.foto_crlv||'#'}" target="_blank">📄 CRLV</a><a href="${m.foto_selfie||m.foto_selfie_url||'#'}" target="_blank">🤳 Selfie</a></div>
+    <button class="btn btn-green" onclick="aprovarMoto('${m.id}','${(m.telefone||m.whatsapp||'').replace(/\D/g,'')}')">✅ Aprovar Motoboy</button>
+    <button class="btn btn-red" onclick="reprovarMoto('${m.id}')">❌ Reprovar</button>
+    </div>`).join('')||'<p class="small">Nenhum motoboy pendente</p>';
+
+  // MOTOBOYS APROVADOS
+  const {data: aprM} = await supabase
