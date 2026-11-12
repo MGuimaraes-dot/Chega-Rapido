@@ -1,266 +1,180 @@
 <!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chega Rápido - Motoboy</title>
+<title>EntreAqui - Painel Motoboy</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase.js"></script>
 <style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
 header{background:#00a650;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:22px}
 .card{max-width:480px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
-.btn{width:100%;padding:14px;border:0;border-radius:12px;font-weight:800;font-size:16px;cursor:pointer;margin-top:10px}
-.btn-green{background:#00a650;color:#fff}.btn-orange{background:#ff5a00;color:#fff}.btn-gray{background:#eee}.btn-blue{background:#1976d2;color:#fff}.btn-red{background:#fee2e2;color:#991b1b}
-.item{border:1px solid #eee;border-radius:12px;padding:14px;margin-top:10px}
+.btn{width:100%;padding:14px;border:0;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;margin-top:10px}
+.btn-green{background:#00a650;color:#fff}.btn-orange{background:#ff5a00;color:#fff}.btn-gray{background:#eee;color:#333}.btn-blue{background:#1976d2;color:#fff}
+.item{border:1px solid #eee;border-radius:12px;padding:14px;margin-top:10px;background:#fafafa}
 .item-aceita{border:2px solid #00a650;background:#f0fdf4}
-input{width:100%;padding:13px;border:1px solid #ddd;border-radius:11px;font-size:16px;margin-top:8px}
+input{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;font-size:15px;margin-top:8px}
 input.codigo{letter-spacing:4px;font-weight:900;text-align:center}
-h3{margin:20px 0 0}
-.status-box{padding:14px;border-radius:12px;text-align:center;font-weight:800;font-size:15px;margin-top:12px}
-.status-analise{background:#fef3c7;color:#92400e;border:1.5px solid #fcd34d}
-.status-aprovado{background:#dcfce7;color:#166534;border:1.5px solid #86efac}
-.status-bloqueado{background:#fee2e2;color:#991b1b;border:1.5px solid #fca5a5}
-.edit-box{display:none;background:#f9fafb;border:1px solid #eee;border-radius:12px;padding:14px;margin-top:10px}
-.edit-box label{font-size:13px;color:#666;font-weight:700}
-.oferta{border:2px solid #ff5a00;background:#fff7ed}
+.status-box{padding:12px;border-radius:12px;text-align:center;font-weight:800;font-size:14px;margin-top:10px}
+.status-analise{background:#fef3c7;color:#92400e}
+.status-aprovado{background:#dcfce7;color:#166534}
+.status-bloqueado{background:#fee2e2;color:#991b1b}
+.config-box{display:none;background:#f9fafb;border:1px solid #eee;border-radius:12px;padding:14px;margin-top:10px}
 </style></head><body>
-<header>🛵 CHEGA RÁPIDO - MOTOBOY</header>
+<header>📦 ENTREAQUI - MOTOBOY</header>
 <div class="card">
-<h2 id="nomeMoto">Olá, Motoboy</h2><p id="cpfMoto" style="color:#666;margin:0"></p>
-<p id="placaMoto" style="color:#666;margin:4px 0 0"></p>
-<p id="telMoto" style="color:#666;margin:4px 0 0"></p>
-<div id="statusBox" class="status-box status-analise">⏳ Carregando seu status...</div>
+<h2 id="nomeMoto" style="margin:0">Motoboy</h2>
+<p id="cpfMoto" style="color:#666;margin:4px 0 0;font-size:13px"></p>
+<p id="placaMoto" style="color:#666;margin:4px 0 0;font-size:13px"></p>
+<div id="statusBox" class="status-box status-analise">Carregando status...</div>
+
 <button id="btnOnline" class="btn btn-green" onclick="alternarOnline()">🟢 Ficar Online</button>
-<p id="posFila" style="text-align:center;color:#666;font-size:13px;margin:8px 0 0"></p>
-<p id="cidadeMoto" style="text-align:center;color:#00a650;font-size:13px;font-weight:700;margin:4px 0 0"></p>
-<button class="btn btn-gray" onclick="mostrarEditar()">✏️ Editar meus dados</button>
-<div id="boxEditar" class="edit-box">
-  <label>Nome completo</label>
-  <input id="editNome" type="text">
-  <label>Telefone / WhatsApp</label>
-  <input id="editTelefone" type="text">
-  <label>Placa da moto</label>
-  <input id="editPlaca" type="text">
-  <button class="btn btn-green" onclick="salvarEdicao()">💾 Salvar alterações</button>
-  <button class="btn btn-gray" onclick="document.getElementById('boxEditar').style.display='none'">Fechar</button>
+<p id="posFila" style="text-align:center;color:#666;font-size:12px;margin:6px 0 0"></p>
+
+<button class="btn btn-gray" onclick="alternarConfig()">⚙️ Configurações & Ganhos</button>
+<div id="boxConfig" class="config-box">
+  <h3 style="margin-top:0;font-size:14px">Alterar Senha</h3>
+  <label>Nova Senha</label>
+  <input id="novaSenhaMoto" type="password" placeholder="Nova senha">
+  <button class="btn btn-green" onclick="salvarSenhaMoto()">Salvar Senha</button>
+  <h3 style="font-size:14px;margin-top:14px">Meus Ganhos</h3>
+  <div id="extratoMoto" style="font-size:13px;color:#333">Calculando...</div>
 </div>
-<button class="btn btn-gray" onclick="mostrarSenha()">🔑 Trocar senha</button>
-<div id="boxSenha" class="edit-box">
-  <label>Nova senha</label>
-  <input id="novaSenha" type="password" placeholder="Digite a nova senha">
-  <button class="btn btn-green" onclick="salvarSenha()">💾 Trocar senha</button>
-  <button class="btn btn-gray" onclick="document.getElementById('boxSenha').style.display='none'">Fechar</button>
-</div>
-<button class="btn btn-green" onclick="carregar()">🔄 Atualizar Entregas</button>
-<h3>📦 Minhas entregas aceitas - finalizar com código</h3>
+
+<button class="btn.green btn" onclick="carregar()" style="background:#00a650;color:#fff;margin-top:12px">🔄 Atualizar Entregas</button>
+
+<h3 style="font-size:15px">📦 Minhas Entregas em Andamento</h3>
 <div id="minhas"></div>
-<h3>🟠 Entregas na sua vez</h3>
+
+<h3 style="font-size:15px">🔔 Pedidos Disponíveis na Fila</h3>
 <div id="lista"></div>
-<button class="btn btn-gray" onclick="sair()">Sair</button>
+
+<button class="btn btn-gray" onclick="sair()" style="margin-top:20px">Sair do Painel</button>
 </div>
+
 <script>
-function getMotoboyLocal(){ try{ return JSON.parse(localStorage.getItem('motoboy')); }catch(e){ return null; } }
-function getClient(){ return window.supabaseClient; }
-const moto=getMotoboyLocal(); if(!moto) location.href='index.html';
-let dadosAtual = moto;
+const moto = getMotoboy(); if(!moto) location.href='index.html';
 let onlineAtual = !!moto.online;
-document.getElementById('nomeMoto').innerText='Olá, '+ (moto.nome_completo || moto.nome || 'Motoboy');
-document.getElementById('cpfMoto').innerText='CPF: '+moto.cpf;
-if(moto.placa_moto || moto.placa) document.getElementById('placaMoto').innerText='Placa: '+(moto.placa_moto || moto.placa);
-if(moto.telefone || moto.whatsapp) document.getElementById('telMoto').innerText='Whats: '+(moto.telefone || moto.whatsapp);
+
 function atualizarBotaoOnline(){
-  const b=document.getElementById('btnOnline');
+  const b = document.getElementById('btnOnline');
   b.innerText = onlineAtual ? '🔴 Ficar Offline' : '🟢 Ficar Online';
   b.style.background = onlineAtual ? '#fee2e2' : '#00a650';
   b.style.color = onlineAtual ? '#991b1b' : '#fff';
 }
 atualizarBotaoOnline();
+
 function sair(){
-  // Ao sair, fica offline para não receber oferta
-  getClient().from('motoboys').update({online:false}).eq('id', moto.id).then(()=>{ localStorage.removeItem('motoboy'); location.href='index.html'; });
+  supabaseClient.from('motoboys').update({online:false}).eq('id', moto.id).then(()=>{
+    localStorage.removeItem('motoboy'); location.href='index.html';
+  });
 }
-function isAprovado(d){
-  if(!d) return false;
-  if(d.status==='aprovado') return true;
-  if(d.aprovado === true && d.status!=='bloqueado' && d.status!=='rejeitado') return true;
-  return false;
-}
-function isBloqueado(d){
-  if(!d) return false;
-  if(d.bloqueado === true) return true;
-  const s = (d.status || '').toString().toLowerCase();
-  return s === 'rejeitado' || s === 'bloqueado';
-}
+
 async function verificarStatus(){
-  try{
-    const {data} = await getClient().from('motoboys').select('*').eq('id', moto.id).maybeSingle();
-    if(data){
-      dadosAtual = data;
-      onlineAtual = !!data.online;
-      atualizarBotaoOnline();
-      document.getElementById('nomeMoto').innerText='Olá, '+ (data.nome_completo || data.nome || 'Motoboy');
-      if(data.placa_moto || data.placa) document.getElementById('placaMoto').innerText='Placa: '+(data.placa_moto || data.placa);
-      if(data.telefone || data.whatsapp) document.getElementById('telMoto').innerText='Whats: '+(data.telefone || data.whatsapp);
-      localStorage.setItem('motoboy', JSON.stringify(data));
-    }
-  }catch(e){ console.log(e); }
-  const box = document.getElementById('statusBox');
-  if(isBloqueado(dadosAtual)){
-    box.className='status-box status-bloqueado';
-    box.innerText='🔴 BLOQUEADO - Fale com a administração do Chega Rápido';
-    return 'bloqueado';
-  }
-  if(isAprovado(dadosAtual)){
-    box.className='status-box status-aprovado';
-    box.innerText='🟢 APROVADO - Você já pode aceitar entregas!';
-    return 'aprovado';
-  } else {
-    box.className='status-box status-analise';
-    box.innerText='🟡 EM ANÁLISE - Seu cadastro está sendo analisado. Aguarde aprovação para começar a aceitar entregas.';
-    return 'analise';
-  }
+  const {data} = await supabaseClient.from('motoboys').select('*').eq('id', moto.id).maybeSingle();
+  if(!data) return 'analise';
+  if(data.bloqueado || data.status==='bloqueado') return 'bloqueado';
+  if(data.aprovado || data.status==='aprovado') return 'aprovado';
+  return 'analise';
 }
+
 async function alternarOnline(){
-  const s = await verificarStatus();
-  if(s!=='aprovado') return alert('Você ainda está EM ANÁLISE ou BLOQUEADO. Aguarde aprovação.');
+  const status = await verificarStatus();
+  if(status !== 'aprovado') return alert('Seu cadastro ainda está em análise ou bloqueado.');
   onlineAtual = !onlineAtual;
-  await getClient().from('motoboys').update({online: onlineAtual}).eq('id', moto.id);
+  await supabaseClient.from('motoboys').update({online: onlineAtual}).eq('id', moto.id);
   atualizarBotaoOnline();
-  if(onlineAtual){
-    if(navigator.vibrate) navigator.vibrate(200);
-    if(navigator.geolocation){
-      navigator.geolocation.getCurrentPosition(async p=>{
-        await getClient().from('motoboys').update({lat:p.coords.latitude, lng:p.coords.longitude}).eq('id', moto.id);
-        try{
-          const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${p.coords.latitude}&lon=${p.coords.longitude}`);
-          const d=await r.json();
-          const cidade=d.address.city||d.address.town||d.address.village||d.address.municipality||'';
-          if(cidade){ document.getElementById('cidadeMoto').innerText='📍 '+cidade; localStorage.setItem('cidade_atual', cidade); }
-        }catch(e){}
-      });
-    }
-    alert('🟢 Você está ONLINE! Agora você entra na fila. Quando for sua vez, o celular vai vibrar.');
+  if(onlineAtual && navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(async p=>{
+      await supabaseClient.from('motoboys').update({lat: p.coords.latitude, lng: p.coords.longitude}).eq('id', moto.id);
+    });
   }
   carregar();
 }
-async function mostrarFila(){
-  try{
-    const {data} = await getClient().from('motoboys').select('id,ultima_entrega').eq('status','aprovado').eq('online',true).order('ultima_entrega',{ascending:true, nullsFirst:true});
-    const idx = (data||[]).findIndex(m=>m.id===moto.id);
-    if(idx>=0) document.getElementById('posFila').innerText = 'Sua posição na fila: '+(idx+1)+'º de '+(data.length)+' online';
-    else if(onlineAtual) document.getElementById('posFila').innerText = 'Você está online - aguardando sua vez na fila';
-    else document.getElementById('posFila').innerText = 'Você está offline - clique em Ficar Online para entrar na fila';
-  }catch(e){}
-}
-function mostrarEditar(){
-  document.getElementById('boxSenha').style.display='none';
-  const b=document.getElementById('boxEditar');
-  b.style.display = b.style.display==='block' ? 'none' : 'block';
-  document.getElementById('editNome').value = dadosAtual.nome_completo || dadosAtual.nome || '';
-  document.getElementById('editTelefone').value = dadosAtual.telefone || dadosAtual.whatsapp || '';
-  document.getElementById('editPlaca').value = dadosAtual.placa_moto || dadosAtual.placa || '';
-}
-async function salvarEdicao(){
-  const nome=document.getElementById('editNome').value.trim();
-  const telefone=document.getElementById('editTelefone').value.trim();
-  const placa=document.getElementById('editPlaca').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  if(!nome || !telefone || !placa) return alert('Preencha nome, telefone e placa');
-  const {error}=await getClient().from('motoboys').update({nome:nome, nome_completo:nome, telefone:telefone, whatsapp:telefone, placa:placa, placa_moto:placa}).eq('id', moto.id);
-  if(error) return alert('Erro: '+error.message);
-  alert('✅ Dados atualizados!');
-  document.getElementById('boxEditar').style.display='none';
-  await verificarStatus();
-}
-function mostrarSenha(){
-  document.getElementById('boxEditar').style.display='none';
-  const b=document.getElementById('boxSenha');
-  b.style.display = b.style.display==='block' ? 'none' : 'block';
-}
-async function salvarSenha(){
-  const nova=document.getElementById('novaSenha').value;
-  if(!nova || nova.length < 4) return alert('A senha precisa ter pelo menos 4 caracteres');
-  const {error}=await getClient().from('motoboys').update({senha:nova}).eq('id', moto.id);
-  if(error) return alert('Erro: '+error.message);
-  alert('✅ Senha trocada com sucesso! Use a nova senha no próximo login.');
-  document.getElementById('novaSenha').value='';
-  document.getElementById('boxSenha').style.display='none';
-}
+
 async function carregar(){
-  const statusAtual = await verificarStatus();
-  if(statusAtual !== 'aprovado'){
-    document.getElementById('minhas').innerHTML='<p>⏳ Você ainda está em análise. Assim que for aprovado, suas entregas vão aparecer aqui.</p>';
-    if(statusAtual === 'bloqueado'){
-      document.getElementById('lista').innerHTML='<p>🔴 Sua conta está bloqueada. Fale com a administração.</p>';
-    } else {
-      document.getElementById('lista').innerHTML='<p>🟡 Aguarde sua aprovação para ver as entregas disponíveis.</p>';
-    }
+  const status = await verificarStatus();
+  const box = document.getElementById('statusBox');
+  if(status==='aprovado'){
+    box.className='status-box status-aprovado'; box.innerText='🟢 APROVADO - Pronto para entregas';
+  } else if(status==='bloqueado'){
+    box.className='status-box status-bloqueado'; box.innerText='🔴 BLOQUEADO PELA ADMINISTRAÇÃO';
+    return;
+  } else {
+    box.className='status-box status-analise'; box.innerText='🟡 EM ANÁLISE - Aguarde aprovação';
     return;
   }
-  await mostrarFila();
-  // Minhas aceitas / em rota
-  const {data: minhas} = await getClient().from('entregas').select('*').eq('motoboy_id', moto.id).in('status',['aceita','retirada']).order('created_at',{ascending:false});
-  document.getElementById('minhas').innerHTML=(minhas||[]).map(e=>{
-    const mapa = `https://www.google.com/maps/dir/${encodeURIComponent(e.endereco_retirada||'')}/${encodeURIComponent(e.endereco+', '+(e.cidade||''))}`;
-    return `<div class="item item-aceita"><b>${e.cliente_nome}</b> - R$ ${(e.valor_motoboy||e.valor||0).toFixed(2)} para você<br>
-    📦 <b>RETIRAR EM:</b> ${e.endereco_retirada||''} - ${e.loja_nome||''}<br>
-    🏠 <b>ENTREGAR EM:</b> ${e.endereco} - ${e.bairro||''} - ${e.cidade||''}<br>
-    📏 ${e.distancia_km||'?'} km ${e.chovendo?'🌧️ +R$ 2 chuva':''} | 🔑 Código: ${e.codigo_entrega||''} (o cliente vai falar)<br>
-    <small>${e.observacao||''}</small><br>
-    <a href="${mapa}" target="_blank" style="display:block;text-align:center;padding:12px;background:#1976d2;color:#fff;border-radius:10px;margin-top:10px;text-decoration:none;font-weight:800">🗺️ Abrir Mapa - Retirada → Entrega</a>
-    ${e.status==='aceita' ? `<button class="btn btn-orange" onclick="marcarRetirada('${e.id}')">📦 Entrega Retirada - Estou em rota</button>` : `<p style="text-align:center;color:#00a650;font-weight:800;margin:10px 0 0">🚀 EM ROTA - indo para o cliente</p>`}
-    <br><b>🔑 Peça o código para o cliente:</b><input class="codigo" id="codigo-${e.id}" placeholder="0000" maxlength="4" inputmode="numeric"><button class="btn btn-blue" onclick="finalizar('${e.id}')">✅ Confirmar entrega com código</button></div>`;
-  }).join('')||'<p>Nenhuma entrega aceita ainda. Aceite uma abaixo.</p>';
-  // Pendentes - só mostra se for sua vez ou se ainda não foi oferecida para ninguém
-  // Regra da fila: se oferecido_para está vazio, é a vez do 1º da fila. Para simplificar e não travar, mostramos para quem está online e ainda não tem entrega aceita.
-  const {data,error}=await getClient().from('entregas').select('*').eq('status','pendente').order('created_at',{ascending:false});
-  if(error) return document.getElementById('lista').innerHTML='Erro: '+error.message;
-  const jaTemAceita = (minhas||[]).length>0;
-  const minhasVez = (data||[]).filter(e=> !e.oferecido_para || e.oferecido_para===moto.id);
-  // Se ainda não tem entrega aceita e está online, vibra quando aparece oferta
-  if(minhasVez.length && onlineAtual && !jaTemAceita){
-    if(navigator.vibrate) navigator.vibrate([300,100,300,100,300]);
-    try{ const a=new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg'); a.play(); }catch(e){}
-  }
-  if(jaTemAceita){
-    document.getElementById('lista').innerHTML='<p>✅ Você já tem uma entrega aceita. Finalize ela para voltar ao fim da fila e receber a próxima.</p>';
-    return;
-  }
+
+  // Minhas entregas aceitas
+  const {data: minhas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', moto.id).in('status',['aceita','retirada']).order('created_at',{ascending:false});
+  document.getElementById('minhas').innerHTML = (minhas||[]).map(e=>{
+    const mapa = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(e.endereco+', '+(e.cidade||''))}`;
+    return `<div class="item item-aceita"><b>${e.cliente_nome}</b> - R$ ${(e.valor_motoboy||0).toFixed(2)}<br>
+    📦 <b>Retirar em:</b> ${e.endereco_retirada||''}<br>
+    🏠 <b>Entregar em:</b> ${e.endereco} - ${e.cidade||''}<br>
+    📏 ${e.distancia_km||'?'} km ${e.chovendo?'(🌧️ +R$ 2 chuva)':''}<br>
+    <a href="${mapa}" target="_blank" style="display:block;text-align:center;padding:10px;background:#1976d2;color:#fff;border-radius:10px;margin-top:8px;text-decoration:none;font-weight:700">🗺️ Abrir Rota no GPS</a>
+    ${e.status==='aceita' ? `<button class="btn.orange btn" onclick="retirar('${e.id}')" style="background:#ff5a00;color:#fff">📦 Marcar como Retirado</button>` : `<p style="color:#00a650;font-weight:700;margin:6px 0">🚀 Em rota de entrega</p>`}
+    <label>Digite o PIN de 4 dígitos do Cliente:</label>
+    <input class="codigo" id="pin-${e.id}" placeholder="0000" maxlength="4" inputmode="numeric">
+    <button class="btn btn-blue" onclick="finalizar('${e.id}')">✅ Confirmar Entrega</button></div>`;
+  }).join('')||'<p style="font-size:13px;color:#666">Nenhuma entrega em andamento</p>';
+
+  // Fila de pendentes
   if(!onlineAtual){
-    document.getElementById('lista').innerHTML='<p>⚪ Você está offline. Clique em Ficar Online para receber entregas.</p>';
+    document.getElementById('lista').innerHTML='<p style="font-size:13px;color:#666">Você está offline.</p>';
     return;
   }
-  document.getElementById('lista').innerHTML=minhasVez.map(e=>`<div class="item oferta"><b>${e.cliente_nome}</b> - R$ ${(e.valor_motoboy||e.valor||0).toFixed(2)} para você<br>📦 <b>Retirar:</b> ${e.endereco_retirada||''} - ${e.loja_nome||''}<br>🏠 <b>Entregar:</b> ${e.endereco} - ${e.bairro||''} - ${e.cidade||''}<br>📏 ${e.distancia_km||'?'} km ${e.chovendo?'🌧️ +R$ 2 chuva':''}<br><small>${e.observacao||''}</small><br><button class="btn btn-orange" onclick="aceitar('${e.id}')">✅ Aceitar Entrega</button> <button class="btn btn-gray" onclick="recusar('${e.id}')">❌ Recusar - passar para próximo</button></div>`).join('')||'<p>Nenhuma entrega na sua vez. Fique online.</p>';
+  const {data: pendentes} = await supabaseClient.from('entregas').select('*').eq('status','pendente').order('created_at',{ascending:true});
+  document.getElementById('lista').innerHTML = (pendentes||[]).map(e=>`
+    <div class="item"><b>${e.cliente_nome}</b> - R$ ${(e.valor_motoboy||0).toFixed(2)}<br>
+    📦 Retirada: ${e.endereco_retirada||''}<br>
+    🏠 Destino: ${e.endereco} - ${e.cidade||''}<br>
+    📏 ${e.distancia_km||'?'} km<br>
+    <button class="btn btn-orange" onclick="aceitar('${e.id}')">✅ Aceitar Corrida</button></div>`).join('')||'<p style="font-size:13px;color:#666">Nenhuma entrega na fila no momento.</p>';
+
+  // Extrato financeiro
+  const {data: entregues} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', moto.id).eq('status','entregue');
+  let totalGanhos = 0;
+  (entregues||[]).forEach(e => totalGanhos += Number(e.valor_motoboy||0));
+  document.getElementById('extratoMoto').innerHTML = `Total de entregas: ${(entregues||[]).length}<br><b>Total a receber via Pix: R$ ${totalGanhos.toFixed(2)}</b><br><small>Chave Pix: ${moto.chave_pix||'Não cadastrada'}</small>`;
 }
+
 async function aceitar(id){
-  const s = await verificarStatus();
-  if(s !== 'aprovado') return alert('Você ainda está EM ANÁLISE. Aguarde sua aprovação para aceitar entregas.');
-  if(!onlineAtual) return alert('Você está offline. Clique em Ficar Online primeiro.');
-  const {error}=await getClient().from('entregas').update({status:'aceita',motoboy_id:moto.id, aceita_em:new Date().toISOString()}).eq('id',id).eq('status','pendente');
-  if(error) alert(error.message); else { if(navigator.vibrate) navigator.vibrate(200); alert('Entrega aceita! Vá buscar. Lembre: só finalize com o código que o cliente falar.'); carregar(); }
-}
-async function recusar(id){
-  await getClient().from('entregas').update({oferecido_para:null}).eq('id',id);
-  alert('Recusada. Vai para o próximo da fila.');
+  const {error} = await supabaseClient.from('entregas').update({status:'aceita', motoboy_id: moto.id, aceita_em: new Date().toISOString()}).eq('id', id).eq('status','pendente');
+  if(error) return alert('Corrida já foi aceita por outro motoboy.');
+  alert('Entrega aceita! Dirija-se ao local de retirada.');
   carregar();
 }
-async function marcarRetirada(id){
-  const {error}=await getClient().from('entregas').update({status:'retirada', retirada_em:new Date().toISOString()}).eq('id',id);
-  if(error) return alert(error.message);
-  alert('📦 Retirada confirmada! Agora você está EM ROTA para o cliente.');
+
+async function retirar(id){
+  await supabaseClient.from('entregas').update({status:'retirada'}).eq('id', id);
   carregar();
 }
+
 async function finalizar(id){
-  const codigoDigitado=document.getElementById('codigo-'+id).value.trim();
-  if(!codigoDigitado || codigoDigitado.length!==4) return alert('Digite o código de 4 números que o cliente falou');
-  const {data} = await getClient().from('entregas').select('codigo_entrega').eq('id',id).maybeSingle();
-  if(!data) return alert('Entrega não encontrada');
-  if(codigoDigitado !== data.codigo_entrega) return alert('❌ Código inválido! Peça o código certo para o cliente. Não entregue sem o código.');
-  const agora = new Date().toISOString();
-  const {error}=await getClient().from('entregas').update({status:'entregue', codigo_confirmado:true, entregue_em:agora}).eq('id',id);
-  if(error) alert(error.message); else {
-    // Volta ao fim da fila: atualiza ultima_entrega
-    await getClient().from('motoboys').update({ultima_entrega:agora}).eq('id', moto.id);
-    alert('✅ Entrega confirmada com código! Bom trabalho! Você voltou para o fim da fila.');
-    carregar();
-  }
+  const pin = document.getElementById('pin-'+id).value.trim();
+  if(!pin || pin.length!==4) return alert('Digite o PIN de 4 dígitos informado pelo cliente');
+  const {data} = await supabaseClient.from('entregas').select('codigo_entrega').eq('id',id).maybeSingle();
+  if(!data || pin !== data.codigo_entrega) return alert('❌ PIN incorreto! Confirme o número com o cliente.');
+  
+  await supabaseClient.from('entregas').update({status:'entregue', entregue_em: new Date().toISOString(), codigo_confirmado:true}).eq('id',id);
+  alert('✅ Entrega finalizada com sucesso! Bom trabalho.');
+  carregar();
 }
+
+function alternarConfig(){
+  const b = document.getElementById('boxConfig');
+  b.style.display = b.style.display==='block' ? 'none' : 'block';
+}
+
+async function salvarSenhaMoto(){
+  const nova = document.getElementById('novaSenhaMoto').value;
+  if(!nova || nova.length<4) return alert('Senha inválida');
+  const {error} = await supabaseClient.from('motoboys').update({senha: nova}).eq('id', moto.id);
+  if(error) return alert('Erro: '+error.message);
+  alert('Senha alterada com sucesso!');
+  document.getElementById('novaSenhaMoto').value='';
+}
+
 carregar();
-setInterval(()=>{ if(onlineAtual) carregar(); }, 15000);
-</script></body></html>
+setInterval(()=>{ if(onlineAtual) carregar(); }, 10000);
+</script>
+</body></html>
