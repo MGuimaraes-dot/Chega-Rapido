@@ -73,36 +73,185 @@ function trocarAba(t){
 }
 
 async function carregarChuva(){
-  const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
-  const b=document.getElementById('btnChuva');
-  if(!b) return;
-  const chov = data?.chovendo;
-  b.innerText = chov ? '🌧️ SIM - Chovendo (+R$ 2,00 por corrida)' : '☀️ NÃO - Sem chuva';
-  b.style.background = chov ? '#3b82f6' : '#eee';
-  b.style.color = chov ? '#fff' : '#000';
+  try {
+    const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
+    const b = document.getElementById('btnChuva');
+    if(!b) return;
+    const chov = data?.chovendo;
+    b.innerText = chov ? '🌧️ SIM - Chovendo (+R$ 2,00 por corrida)' : '☀️ NÃO - Sem chuva';
+    b.style.background = chov ? '#3b82f6' : '#eee';
+    b.style.color = chov ? '#fff' : '#000';
+  } catch(e) {
+    const b = document.getElementById('btnChuva');
+    if(b) b.innerText = '☀️ NÃO - Sem chuva';
+  }
 }
 
 async function alternarChuva(){
-  const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
-  const novo = !(data?.chovendo);
-  if(!data){
-    await supabaseClient.from('config').insert([{id:1, chovendo:novo}]);
-  } else {
-    await supabaseClient.from('config').update({chovendo:novo}).eq('id',1);
+  try {
+    const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
+    const novo = !(data?.chovendo);
+    if(!data){
+      await supabaseClient.from('config').insert([{id:1, chovendo:novo}]);
+    } else {
+      await supabaseClient.from('config').update({chovendo:novo}).eq('id',1);
+    }
+    carregarChuva();
+  } catch(e) {
+    alert('Erro ao alterar status de chuva: ' + e.message);
   }
-  carregarChuva();
 }
 
 async function carregarTudo(){
+  carregarChuva();
+
   // MOTOBOYS PENDENTES
-  const {data: pendM} = await supabaseClient.from('motoboys').select('*').eq('status','pendente').order('created_at',{ascending:true});
-  document.getElementById('pendentesMoto').innerHTML=(pendM||[]).map(m=>`
-    <div class="item"><b>${m.nome_completo||m.nome||''}</b><br>
-    <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''} | Pix: ${m.chave_pix||'Não informada'}</span><br>
-    <div class="fotos"><a href="${m.foto_cnh||m.foto_documento_url||'#'}" target="_blank">📄 CNH</a><a href="${m.foto_crlv||'#'}" target="_blank">📄 CRLV</a><a href="${m.foto_selfie||m.foto_selfie_url||'#'}" target="_blank">🤳 Selfie</a></div>
-    <button class="btn btn-green" onclick="aprovarMoto('${m.id}','${(m.telefone||m.whatsapp||'').replace(/\D/g,'')}')">✅ Aprovar Motoboy</button>
-    <button class="btn btn-red" onclick="reprovarMoto('${m.id}')">❌ Reprovar</button>
-    </div>`).join('')||'<p class="small">Nenhum motoboy pendente</p>';
+  try {
+    const {data: pendM} = await supabaseClient.from('motoboys').select('*').eq('status','pendente').order('created_at',{ascending:true});
+    document.getElementById('pendentesMoto').innerHTML=(pendM||[]).map(m=>`
+      <div class="item"><b>${m.nome_completo||m.nome||''}</b><br>
+      <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''} | Pix: ${m.chave_pix||'Não informada'}</span><br>
+      <div class="fotos"><a href="${m.foto_cnh||m.foto_documento_url||'#'}" target="_blank">📄 CNH</a><a href="${m.foto_crlv||'#'}" target="_blank">📄 CRLV</a><a href="${m.foto_selfie||m.foto_selfie_url||'#'}" target="_blank">🤳 Selfie</a></div>
+      <button class="btn btn-green" onclick="aprovarMoto('${m.id}','${(m.telefone||m.whatsapp||'').replace(/\D/g,'')}')">✅ Aprovar Motoboy</button>
+      <button class="btn btn-red" onclick="reprovarMoto('${m.id}')">❌ Reprovar</button>
+      </div>`).join('')||'<p class="small">Nenhum motoboy pendente</p>';
+  } catch(err) {
+    document.getElementById('pendentesMoto').innerHTML='<p class="small">Erro ao carregar motoboys pendentes</p>';
+  }
 
   // MOTOBOYS APROVADOS
-  const {data: aprM} = await supabase
+  try {
+    const {data: aprM} = await supabaseClient.from('motoboys').select('*').eq('status','aprovado').order('created_at',{ascending:false});
+    document.getElementById('aprovadosMoto').innerHTML=(aprM||[]).map(m=>`
+      <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.online?'🟢 ONLINE':'⚪ OFFLINE'}</span><br>
+      <span class="small">CPF: ${m.cpf} | Pix: ${m.chave_pix||'N/A'} | Whats: ${m.telefone||m.whatsapp||''}</span><br>
+      <button class="btn btn-red" onclick="bloquearMoto('${m.id}')">🔴 Bloquear Motoboy</button></div>`).join('')||'<p class="small">Nenhum motoboy aprovado</p>';
+  } catch(err) {
+    document.getElementById('aprovadosMoto').innerHTML='';
+  }
+
+  // MOTOBOYS BLOQUEADOS/REJEITADOS
+  try {
+    const {data: bloM} = await supabaseClient.from('motoboys').select('*').in('status',['bloqueado','rejeitado']).order('created_at',{ascending:false});
+    document.getElementById('bloqueadosMoto').innerHTML=(bloM||[]).map(m=>`
+      <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.status}</span><br>
+      <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''}</span><br>
+      <button class="btn btn-green" onclick="desbloquearMoto('${m.id}')">✅ Desbloquear</button></div>`).join('')||'<p class="small">Nenhum bloqueado</p>';
+  } catch(err) {
+    document.getElementById('bloqueadosMoto').innerHTML='';
+  }
+
+  // LOJAS PENDENTES
+  try {
+    const {data: pendL} = await supabaseClient.from('lojas').select('*').eq('status','pendente').order('created_at',{ascending:true});
+    document.getElementById('pendentesLoja').innerHTML=(pendL||[]).map(l=>`
+      <div class="item"><b>${l.nome_fantasia||l.nome||''}</b><br>
+      <span class="small">CNPJ: ${l.cnpj} | Responsável: ${l.nome_responsavel||'N/A'} | Whats: ${l.whatsapp||''}</span><br>
+      <span class="small">Retirada: ${l.endereco_retirada||l.endereco||''}</span><br>
+      <div class="fotos"><a href="${l.foto_fachada||'#'}" target="_blank">🏪 Fachada</a><a href="${l.foto_selfie||'#'}" target="_blank">🤳 Selfie Responsável</a></div>
+      <button class="btn btn-green" onclick="aprovarLoja('${l.id}','${(l.whatsapp||'').replace(/\D/g,'')}')">✅ Aprovar Loja</button>
+      <button class="btn btn-red" onclick="reprovarLoja('${l.id}')">❌ Rejeitar</button>
+      </div>`).join('')||'<p class="small">Nenhuma loja pendente</p>';
+  } catch(err) {
+    document.getElementById('pendentesLoja').innerHTML='<p class="small">Erro ao carregar lojas pendentes</p>';
+  }
+
+  // LOJAS APROVADAS
+  try {
+    const {data: aprL} = await supabaseClient.from('lojas').select('*').eq('status','aprovado').order('created_at',{ascending:false});
+    document.getElementById('aprovadasLoja').innerHTML=(aprL||[]).map(l=>`
+      <div class="item"><b>${l.nome_fantasia||l.nome||''}</b> - <span class="badge">APROVADA</span><br>
+      <span class="small">CNPJ: ${l.cnpj} | Retirada: ${l.endereco_retirada||l.endereco||''} | Whats: ${l.whatsapp||''}</span><br>
+      <button class="btn btn-red" onclick="bloquearLoja('${l.id}')">🔴 Bloquear Loja</button></div>`).join('')||'<p class="small">Nenhuma loja aprovada</p>';
+  } catch(err) {
+    document.getElementById('aprovadasLoja').innerHTML='';
+  }
+}
+
+async function aprovarMoto(id, tel){
+  const {error} = await supabaseClient.from('motoboys').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
+  if(error) return alert('Erro: '+error.message);
+  if(tel){
+    const msg = encodeURIComponent('✅ Você foi APROVADO no EntreAqui! Use seu CPF e sua senha cadastrada para entrar no aplicativo.');
+    window.open(`https://wa.me/55${tel}?text=${msg}`,'_blank');
+  }
+  alert('Motoboy aprovado com sucesso!');
+  carregarTudo();
+}
+async function reprovarMoto(id){
+  if(!confirm('Reprovar motoboy?')) return;
+  await supabaseClient.from('motoboys').update({status:'rejeitado', aprovado:false, bloqueado:false}).eq('id',id);
+  carregarTudo();
+}
+async function bloquearMoto(id){
+  if(!confirm('Bloquear motoboy?')) return;
+  await supabaseClient.from('motoboys').update({status:'bloqueado', aprovado:false, bloqueado:true, online:false}).eq('id',id);
+  carregarTudo();
+}
+async function desbloquearMoto(id){
+  await supabaseClient.from('motoboys').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
+  carregarTudo();
+}
+
+async function aprovarLoja(id, tel){
+  const {error} = await supabaseClient.from('lojas').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
+  if(error) return alert('Erro: '+error.message);
+  if(tel){
+    const msg = encodeURIComponent('✅ Sua Loja foi APROVADA no EntreAqui! Use seu CNPJ e sua senha para acessar o painel de entregas.');
+    window.open(`https://wa.me/55${tel}?text=${msg}`,'_blank');
+  }
+  alert('Loja aprovada com sucesso!');
+  carregarTudo();
+}
+async function reprovarLoja(id){
+  if(!confirm('Rejeitar loja?')) return;
+  await supabaseClient.from('lojas').update({status:'rejeitado', aprovado:false, bloqueado:false}).eq('id',id);
+  carregarTudo();
+}
+async function bloquearLoja(id){
+  if(!confirm('Bloquear loja?')) return;
+  await supabaseClient.from('lojas').update({status:'bloqueado', aprovado:false, bloqueado:true}).eq('id',id);
+  carregarTudo();
+}
+
+async function relatorio(){
+  const ini=document.getElementById('dataIni').value, fim=document.getElementById('dataFim').value;
+  let q = supabaseClient.from('entregas').select('*').eq('status','entregue');
+  if(ini) q=q.gte('entregue_em',ini+'T00:00:00');
+  if(fim) q=q.lte('entregue_em',fim+'T23:59:59');
+  const {data, error} = await q;
+  if(error) return document.getElementById('rel').innerHTML='Erro: '+error.message;
+  
+  let totalEntregas = (data||[]).length;
+  let valorTotalLojas = 0;
+  let valorTotalMotoboys = 0;
+  
+  (data||[]).forEach(e=>{
+    valorTotalLojas += Number(e.valor||0);
+    valorTotalMotoboys += Number(e.valor_motoboy||0);
+  });
+
+  document.getElementById('rel').innerHTML = `
+    <b>Total de Entregas Concluídas:</b> ${totalEntregas}<br>
+    <b>Total a Receber das Lojas:</b> R$ ${valorTotalLojas.toFixed(2)}<br>
+    <b>Total a Repassar aos Motoboys:</b> R$ ${valorTotalMotoboys.toFixed(2)}<br>
+    <hr style="border:0;border-top:1px solid #ddd;margin:10px 0">
+    <span class="small">O admin recebe das lojas e repassa os valores correspondentes aos motoboys parceiros.</span>
+  `;
+}
+
+// Garante a inserção do registro padrão de config caso não exista
+async function inicializarConfig(){
+  try {
+    const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
+    if(!data){
+      await supabaseClient.from('config').insert([{id:1, chovendo:false}]);
+    }
+  } catch(e) {}
+  carregarTudo();
+}
+
+inicializarConfig();
+</script>
+</body>
+</html>
