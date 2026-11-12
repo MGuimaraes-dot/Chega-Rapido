@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadastro de Loja - EntreAqui</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
+<style>
+  *{box-sizing:border-box;font-family:system-ui,Arial}
+  body{background:#0f1115;color:#fff;margin:0;padding:20px}
+  .box{max-width:480px;margin:0 auto;background:#1a1d24;padding:22px;border-radius:18px;box-shadow:0 4px 20px rgba(0,0,0,.3)}
+  h1{text-align:center;font-size:22px;margin-top:0}
+  label{display:block;margin:14px 0 6px;font-size:13px;color:#ccc;font-weight:700}
+  input[type="text"],input[type="password"],input[type="tel"]{width:100%;padding:13px;border-radius:11px;border:1px solid #333;background:#2a2e38;color:#fff;font-size:15px}
+  .foto-box{background:#2a2e38;border-radius:11px;padding:14px;margin-bottom:10px;border:1px solid #333}
+  .foto-box p{margin:0 0 10px;font-size:13px;color:#aaa}
+  .btns{display:flex;gap:10px}
+  .btn-foto{flex:1;padding:12px;border:0;border-radius:10px;font-weight:bold;cursor:pointer;font-size:13px;text-align:center;display:block}
+  .btn-cam{background:#ff5a00;color:#fff}
+  .btn-gal{background:#3b4252;color:#fff}
+  .nome-arquivo{font-size:12px;color:#ff5a00;margin-top:8px;display:block;word-break:break-all}
+  .preview{width:100%;max-height:160px;object-fit:cover;border-radius:10px;margin-top:8px;display:none;border:1px solid #444}
+  #btnEnviar{width:100%;padding:16px;background:#ff5a00;color:#fff;border:0;border-radius:12px;font-weight:800;font-size:16px;margin-top:20px;cursor:pointer}
+  #btnConsultarToggle{width:100%;padding:14px;background:#3b4252;color:#fff;border:0;border-radius:12px;font-weight:800;font-size:15px;margin-top:14px;cursor:pointer}
+  #btnConsultarAgora{width:100%;padding:13px;background:#ff5a00;color:#fff;border:0;border-radius:11px;font-weight:800;font-size:15px;margin-top:12px;cursor:pointer}
+  #msg{text-align:center;margin-top:15px;font-weight:700;font-size:14px}
+  input[type="file"]{position:absolute;opacity:0;width:1px;height:1px;overflow:hidden}
+  #boxConsulta{display:none;background:#2a2e38;border-radius:12px;padding:16px;margin-top:14px;border:1px solid #333}
+  #resultadoConsulta{margin-top:14px;padding:14px;border-radius:11px;text-align:center;font-weight:800;font-size:14px;line-height:1.5}
+  .res-analise{background:#fef3c7;color:#92400e}
+  .res-aprovado{background:#dcfce7;color:#166534}
+  .res-bloqueado{background:#fee2e2;color:#991b1b}
+  .res-erro{background:#fee2e2;color:#991b1b}
+  .linha{border-top:1px dashed #444;margin:16px 0}
+  .link-voltar{display:block;text-align:center;color:#aaa;margin-top:14px;font-size:14px;text-decoration:none}
+  .termos-box{background:#2a2e38;border:1px solid #333;border-radius:11px;padding:12px;margin-top:16px;font-size:13px;color:#bbb;max-height:100px;overflow-y:auto}
+  .termo-check{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:14px;cursor:pointer}
+  .termo-check input{width:18px;height:18px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>🏪 Cadastro de Loja / Estabelecimento</h1>
+  <form id="formLojaCadastro">
+    <label>Nome Fantasia *</label>
+    <input type="text" id="nome_fantasia" placeholder="Ex: Pizzaria do Zé" required>
+    <label>Razão Social</label>
+    <input type="text" id="razao_social" placeholder="Ex: Pizzaria do Zé LTDA">
+    <label>Nome do Responsável *</label>
+    <input type="text" id="nome_responsavel" placeholder="Nome do proprietário ou gerente" required>
+    <label>CNPJ *</label>
+    <input type="text" id="cnpj" placeholder="00.000.000/0001-00" required>
+    <label>Endereço de Retirada (Ponto de Coleta) *</label>
+    <input type="text" id="endereco_retirada" placeholder="Ex: Rua das Flores, 123 - Centro" required>
+    <label>Cidade *</label>
+    <input type="text" id="cidade" placeholder="Sua cidade" required>
+    <label>WhatsApp Comercial *</label>
+    <input type="tel" id="whatsapp" placeholder="(00) 00000-0000" required>
+    <label>Criar Senha de Acesso *</label>
+    <input type="password" id="senha" placeholder="Senha para entrar na loja" required>
+
+    <label>Foto da Fachada da Loja *</label>
+    <div class="foto-box">
+      <p>Foto nítida da fachada do estabelecimento</p>
+      <div class="btns">
+        <label for="foto_fachada_cam" class="btn-foto btn-cam">📷 Câmera</label>
+        <label for="foto_fachada_gal" class="btn-foto btn-gal">🖼️ Galeria</label>
+      </div>
+      <span class="nome-arquivo" id="nome_foto_fachada"></span>
+      <img id="prev_fachada" class="preview">
+      <input type="file" id="foto_fachada_cam" accept="image/*" capture="environment">
+      <input type="file" id="foto_fachada_gal" accept="image/*">
+    </div>
+
+    <label>Selfie do Responsável *</label>
+    <div class="foto-box">
+      <p>Selfie do proprietário/responsável</p>
+      <div class="btns">
+        <label for="foto_selfie_cam" class="btn-foto btn-cam">🤳 Câmera</label>
+        <label for="foto_selfie_gal" class="btn-foto btn-gal">🖼️ Galeria</label>
+      </div>
+      <span class="nome-arquivo" id="nome_foto_selfie"></span>
+      <img id="prev_selfie" class="preview">
+      <input type="file" id="foto_selfie_cam" accept="image/*" capture="user">
+      <input type="file" id="foto_selfie_gal" accept="image/*">
+    </div>
+
+    <label>Termos de Contrato - Lojista Parceiro</label>
+    <div class="termos-box">
+      <b>CONTRATO DE PARCERIA COMERCIAL - ENTREAQUI</b><br><br>
+      1. A loja compromete-se a fornecer os dados corretos de retirada e itens.<br>
+      2. O acerto financeiro das entregas seguirá o modelo operacional da plataforma.<br>
+      3. A taxa de entrega é repassada integralmente ao motoboy parceiro.
+    </div>
+    <label class="termo-check">
+      <input type="checkbox" id="aceiteTermoLoja" required> Li e concordo com os Termos de Parceria
+    </label>
+
+    <button type="submit" id="btnEnviarLoja">ENVIAR CADASTRO DA LOJA</button>
+    <div id="msgLoja"></div>
+  </form>
+
+  <div class="linha"></div>
+  <button type="button" id="btnConsultarToggle" onclick="abrirConsultaLoja()">🔍 CONSULTAR STATUS DO CADASTRO</button>
+  <div id="boxConsultaLoja" style="display:none">
+    <p style="text-align:center;margin:0 0 10px;font-size:13px;color:#aaa">Informe CNPJ e senha cadastrados</p>
+    <label>CNPJ</label>
+    <input type="text" id="cnpj_consulta" placeholder="00.000.000/0001-00">
+    <label>Senha</label>
+    <input type="password" id="senha_consulta" placeholder="Sua senha">
+    <button type="button" id="btnConsultarAgora" onclick="consultarCadastroLoja()">Consultar Status</button>
+    <div id="resultadoConsultaLoja"></div>
+  </div>
+
+  <a class="link-voltar" href="index.html">← Voltar para o login</a>
+</div>
+
+<script>
+  let arquivosLoja = { fachada:null, selfie:null };
+
+  function ligarLoja(idCam, idGal, chave, spanId, prevId){
+    const mostrar = (input) => {
+      if(input.files && input.files[0]){
+        const f = input.files[0];
+        arquivosLoja[chave] = f;
+        document.getElementById(spanId).textContent = "✅ " + (f.name || 'foto.jpg') + " (" + Math.round(f.size/1024) + " KB)";
+        const prev = document.getElementById(prevId);
+        if(prev){ prev.src = URL.createObjectURL(f); prev.style.display = 'block'; }
+        const outroId = (input.id === idCam) ? idGal : idCam;
+        const outro = document.getElementById(outroId);
+        if(outro && outro !== input) outro.value = '';
+      }
+    };
+    document.getElementById(idCam).addEventListener('change', function(){ mostrar(this); });
+    document.getElementById(idGal).addEventListener('change', function(){ mostrar(this); });
+  }
+  ligarLoja('foto_fachada_cam','foto_fachada_gal','fachada','nome_foto_fachada','prev_fachada');
+  ligarLoja('foto_selfie_cam','foto_selfie_gal','selfie','nome_foto_selfie','prev_selfie');
+
+  document.getElementById('formLojaCadastro').addEventListener('submit', async function(e){
+    e.preventDefault();
+    if(!document.getElementById('aceiteTermoLoja').checked) return alert('Você precisa aceitar os Termos de Parceria.');
+
+    const btn = document.getElementById('btnEnviarLoja');
+    const msg = document.getElementById('msgLoja');
+    const nome_fantasia = document.getElementById('nome_fantasia').value.trim();
+    const razao_social = document.getElementById('razao_social').value.trim() || nome_fantasia;
+    const nome_responsavel = document.getElementById('nome_responsavel').value.trim();
+    const cnpj = soNumeros(document.getElementById('cnpj').value.trim());
+    const endereco_retirada = document.getElementById('endereco_retirada').value.trim();
+    const cidade = document.getElementById('cidade').value.trim();
+    const whatsapp = document.getElementById('whatsapp').value.trim();
+    const senha = document.getElementById('senha').value;
+
+    if(!arquivosLoja.fachada || !arquivosLoja.selfie) return alert('Envie a foto da fachada e a selfie.');
+
+    btn.textContent = "Enviando dados...";
+    btn.disabled = true;
+    try{
+      async function uploadFoto(file, pasta){
+        const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop().toLowerCase() : 'jpg';
+        const nomeArquivo = pasta + '/' + Date.now() + '_' + Math.random().toString(36).slice(2,8) + '.' + ext;
+        const { error } = await supabaseClient.storage.from('lojas').upload(nomeArquivo, file, { contentType: file.type || 'image/jpeg', upsert: true });
+        if(error) throw error;
+        const { data } = supabaseClient.storage.from('lojas').getPublicUrl(nomeArquivo);
+        return data.publicUrl;
+      }
+
+      msg.style.color = "#facc15";
+      msg.textContent = "⏳ Subindo foto da fachada...";
+      const url_fachada = await uploadFoto(arquivosLoja.fachada, 'fachadas');
+      msg.textContent = "⏳ Subindo selfie...";
+      const url_selfie = await uploadFoto(arquivosLoja.selfie, 'selfies');
+
+      msg.textContent = "⏳ Salvando cadastro...";
+      const { error } = await supabaseClient.from('lojas').insert([{
+        nome: nome_fantasia, nome_fantasia: nome_fantasia, razao_social: razao_social, nome_responsavel: nome_responsavel,
+        cnpj: cnpj, endereco_retirada: endereco_retirada, endereco: endereco_retirada, cidade: cidade,
+        whatsapp: whatsapp, telefone: whatsapp, senha: senha,
+        foto_fachada: url_fachada, foto_selfie: url_selfie,
+        status: 'pendente', aprovado: false, bloqueado: false, termo_aceito: true,
+        created_at: new Date().toISOString()
+      }]);
+      if(error) throw error;
+      msg.style.color = "#00a650";
+      msg.textContent = "✅ Cadastro da loja enviado com sucesso! Aguarde a aprovação.";
+      alert("Cadastro enviado com sucesso!");
+      this.reset();
+      arquivosLoja = { fachada:null, selfie:null };
+    }catch(err){
+      console.error(err);
+      alert("Erro ao enviar: " + err.message);
+      msg.style.color = "red";
+      msg.textContent = "Erro: " + err.message;
+    }finally{
+      btn.textContent = "ENVIAR CADASTRO DA LOJA";
+      btn.disabled = false;
+    }
+  });
+
+  function abrirConsultaLoja(){
+    const box = document.getElementById('boxConsultaLoja');
+    box.style.display = box.style.display === 'block' ? 'none' : 'block';
+  }
+
+  async function consultarCadastroLoja(){
+    const cnpj = soNumeros(document.getElementById('cnpj_consulta').value.trim());
+    const senha = document.getElementById('senha_consulta').value;
+    const res = document.getElementById('resultadoConsultaLoja');
+    if(!cnpj || !senha){ res.className='res-erro'; res.textContent='Digite CNPJ e senha'; return; }
+    res.textContent='Consultando...';
+    let { data, error } = await supabaseClient.from('lojas').select('*').eq('cnpj',cnpj).eq('senha',senha).maybeSingle();
+    if(!data){ res.className='res-erro'; res.textContent='CNPJ ou senha não encontrados.'; return; }
+    if(data.status==='bloqueado' || data.bloqueado){
+      res.className='res-bloqueado'; res.innerHTML='🔴 LOJA BLOQUEADA';
+    } else if(data.status==='rejeitado'){
+      res.className='res-bloqueado'; res.innerHTML='❌ CADASTRO REJEITADO';
+    } else if(data.status==='aprovado' || data.aprovado){
+      res.className='res-aprovado'; res.innerHTML='🟢 APROVADA! Já pode entrar no painel.';
+    } else {
+      res.className='res-analise'; res.innerHTML='🟡 EM ANÁLISE PELA ADMINISTRAÇÃO';
+    }
+  }
+</script>
+</body>
+</html>
