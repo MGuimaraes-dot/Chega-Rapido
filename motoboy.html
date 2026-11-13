@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EntreAqui - Motoboy</title>
+    <!-- Importando o cliente do Supabase via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
@@ -21,6 +22,7 @@
         .config-content { background: #fff; width: 90%; max-width: 440px; border-radius: 16px; padding: 20px; max-height: 85vh; overflow-y: auto; }
         label { font-size: 13px; font-weight: 700; display: block; margin: 12px 0 4px; }
         input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 11px; font-size: 14px; box-sizing: border-box; }
+        input.codigo { letter-spacing: 4px; font-weight: 900; text-align: center; }
         .item { border: 1px solid #eee; border-radius: 12px; padding: 10px; margin-top: 8px; background: #fafafa; font-size: 13px; }
     </style>
 </head>
@@ -149,8 +151,9 @@
             let totalGanhos = 0;
             let aReceber = 0;
             concluidas.forEach(e => {
-                totalGanhos += Number(e.valor_motoboy || 0);
-                if(!e.pago_motoboy) aReceber += Number(e.valor_motoboy || 0);
+                let val = Number(e.valor_motoboy || 0);
+                totalGanhos += val;
+                if(!e.pago_motoboy) aReceber += val;
             });
 
             document.getElementById('extratoMotoboy').innerHTML = `
@@ -210,7 +213,7 @@
 
                     document.getElementById('lbl-loja').innerText = oferta.loja_nome || "Loja Parceira";
                     document.getElementById('lbl-retirada').innerText = oferta.endereco_retirada || "-";
-                    document.getElementById('lbl-destino').innerText = oferta.endereco_entrega || "-";
+                    document.getElementById('lbl-destino').innerText = oferta.endereco || "-";
 
                     cardOferta.style.display = 'block';
                     sinalGps.style.display = 'block';
@@ -234,11 +237,15 @@
                     
                     andamentos.forEach((ent, index) => {
                         htmlAndamento += `
-                            <div style="border-left: 4px solid #28a745; padding-left: 10px; margin-bottom: 10px;">
-                                <p><strong>#${index + 1} - ${ent.cliente_nome || ent.nome_cliente || 'Cliente'}</strong></p>
-                                <p>📍 Retirar em: ${ent.endereco_retirada}</p>
-                                <p>🎯 Entregar em: ${ent.endereco_entrega}</p>
-                                <button class="btn btn-success" onclick="finalizarEntrega('${ent.id}')">Finalizar Entrega</button>
+                            <div style="border-left: 4px solid #28a745; padding-left: 10px; margin-bottom: 15px;">
+                                <p style="margin: 4px 0;"><strong>#${index + 1} - ${ent.cliente_nome || 'Cliente'}</strong></p>
+                                <p style="margin: 4px 0; font-size: 13px;">📍 Retirar em: ${ent.endereco_retirada || '-'}</p>
+                                <p style="margin: 4px 0; font-size: 13px;">🎯 Entregar em: ${ent.endereco || '-'}</p>
+                                
+                                <label style="font-size: 12px; font-weight: 700; display: block; margin-top: 8px;">Digite o PIN de 4 dígitos do Cliente:</label>
+                                <input class="codigo" id="pin-${ent.id}" placeholder="0000" maxlength="4" inputmode="numeric" style="width: 100%; padding: 8px; text-align: center; font-weight: bold; letter-spacing: 3px; margin-bottom: 8px;">
+                                
+                                <button class="btn btn-success" style="width: 100%;" onclick="finalizarEntrega('${ent.id}')">✅ Confirmar Entrega</button>
                             </div>
                             <hr>
                         `;
@@ -322,17 +329,35 @@
         }
 
         async function finalizarEntrega(idEntrega) {
+            const pinInput = document.getElementById('pin-' + idEntrega);
+            const pinDigitado = pinInput ? pinInput.value.trim() : '';
+
+            if (!pinDigitado || pinDigitado.length !== 4) {
+                return alert('Digite o PIN de 4 dígitos informado pelo cliente.');
+            }
+
+            const { data: entregaReal, error: errBusca } = await db
+                .from('entregas')
+                .select('codigo_entrega')
+                .eq('id', idEntrega)
+                .maybeSingle();
+
+            if (errBusca || !entregaReal || pinDigitado !== entregaReal.codigo_entrega) {
+                return alert('❌ PIN incorreto! Confirme o número correto com o cliente.');
+            }
+
             const { error } = await db
                 .from('entregas')
                 .update({ 
                     status: 'entregue', 
-                    entregue_em: new Date().toISOString() 
+                    entregue_em: new Date().toISOString(),
+                    codigo_confirmado: true 
                 })
                 .eq('id', idEntrega)
                 .eq('motoboy_id', motoboyLogadoId);
 
             if (!error) {
-                alert("Entrega finalizada com sucesso!");
+                alert("✅ Entrega finalizada com sucesso!");
                 verificarPainelMotoboy();
             } else {
                 alert("Erro ao finalizar entrega: " + error.message);
