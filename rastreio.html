@@ -1,65 +1,93 @@
 <!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rastreio de Entrega - EntreAqui</title>
+<title>EntreAqui - Acompanhe sua Entrega</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase.js"></script>
-<style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef;padding:16px}
-.card{max-width:480px;margin:20px auto;background:#fff;border-radius:18px;padding:22px;box-shadow:0 4px 20px rgba(0,0,0,.08);text-align:center}
-h2{margin-top:0;color:#ff5a00}
-.status-badge{display:inline-block;padding:8px 16px;border-radius:20px;font-size:14px;font-weight:800;background:#fff3e0;color:#e65100;margin:12px 0}
-.info{text-align:left;font-size:14px;color:#333;margin-top:16px;line-height:1.5;background:#fafafa;padding:14px;border-radius:12px;border:1px solid #eee}
-.pin-box{background:#f0fdf4;border:2px dashed #00a650;border-radius:12px;padding:14px;margin-top:16px}
-.pin-num{font-size:32px;font-weight:900;color:#00a650;letter-spacing:4px}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
+header{background:#ff5a00;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:20px}
+.card{max-width:480px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.status-pill{display:inline-block;padding:6px 14px;border-radius:20px;font-weight:800;font-size:13px;background:#fff3e0;color:#e65100;margin-bottom:10px}
+#map{width:100%;height:300px;border-radius:14px;margin-top:12px;border:1px solid #eee}
+.pin-box{background:#f0fdf4;border:2px dashed #00a650;border-radius:12px;padding:12px;text-align:center;margin-top:14px}
+.chegou-alerta{background:#00a650;color:#fff;padding:14px;border-radius:12px;font-weight:900;text-align:center;margin-bottom:14px;animation:pulsar 1.5s infinite;display:none}
+@keyframes pulsar{0%{transform:scale(1)}50%{transform:scale(1.02)}100%{transform:scale(1)}}
 </style></head><body>
+<header>📦 ENTREAQUI - RASTREIO AO VIVO</header>
 <div class="card">
-  <h2>📦 Rastreio EntreAqui</h2>
-  <div id="statusEntrega" class="status-badge">Carregando status...</div>
+  <div id="bannerChegou" class="chegou-alerta">🔔 O ENTREGADOR CHEGOU NO LOCAL!</div>
+  <div id="statusBadge" class="status-pill">Carregando...</div>
+  <h2 id="lojaNome" style="margin:0;font-size:18px">Pedido</h2>
+  <p id="enderecoEntrega" style="color:#666;font-size:13px;margin:4px 0"></p>
   
-  <div class="pin-box">
-    <div style="font-size:12px;font-weight:700;color:#166534">🔑 SEU CÓDIGO PIN DE ENTREGA</div>
-    <div id="pinCliente" class="pin-num">----</div>
-    <div style="font-size:11px;color:#666">Apresente este código ao motoboy na entrega.</div>
+  <div id="motoInfo" style="background:#f9fafb;padding:12px;border-radius:12px;margin-top:12px;font-size:13px;display:none">
+    🛵 <b>Entregador:</b> <span id="motoNome"></span><br>
+    🏍️ <b>Placa da Moto:</b> <span id="motoPlaca" style="font-weight:800;color:#111"></span>
   </div>
 
-  <div class="info" id="detalhes">
-    Buscando informações do pedido...
+  <div class="pin-box">
+    <div style="font-size:12px;color:#166534;font-weight:700">🔑 SEU PIN DE CONFIRMAÇÃO</div>
+    <div id="pinCliente" style="font-size:28px;font-weight:900;color:#00a650;letter-spacing:4px">----</div>
+    <small style="color:#666">Informe este código ao entregador somente ao receber o pedido.</small>
   </div>
+
+  <div id="map"></div>
 </div>
 
 <script>
 const params = new URLSearchParams(window.location.search);
 const entregaId = params.get('id');
+let map = null, markerMoto = null;
 
-async function carregarRastreio(){
-  if(!entregaId) {
-    document.getElementById('statusEntrega').innerText = 'Link inválido';
-    return;
+async function atualizarRastreio(){
+  if(!entregaId) return;
+  const {data: ent} = await supabaseClient.from('entregas').select('*').eq('id', entregaId).maybeSingle();
+  if(!ent) return;
+
+  document.getElementById('lojaNome').innerText = 'Loja: ' + (ent.loja_nome || '');
+  document.getElementById('enderecoEntrega').innerText = '📍 Entrega: ' + (ent.endereco || '') + ' - ' + (ent.cidade || '');
+  document.getElementById('pinCliente').innerText = ent.codigo_entrega || '----';
+
+  // Exibe banner se o motoboy apertou "Cheguei no Local"
+  document.getElementById('bannerChegou').style.display = (ent.chegou_no_local && ent.status !== 'entregue') ? 'block' : 'none';
+
+  const statusMap = {
+    'agendado': '⏰ Pedido Agendado',
+    'pendente': '⏳ Aguardando Motoboy...',
+    'aceita': '🛵 Motoboy indo retirar na loja',
+    'retirada': '🚀 Pedido retirado! A caminho de você',
+    'entregue': '✅ Pedido Entregue!',
+    'cancelado': '❌ Pedido Cancelado'
+  };
+  document.getElementById('statusBadge').innerText = statusMap[ent.status] || ent.status;
+
+  if(ent.motoboy_id){
+    document.getElementById('motoInfo').style.display = 'block';
+    document.getElementById('motoNome').innerText = ent.motoboy_nome || 'Entregador';
+    document.getElementById('motoPlaca').innerText = ent.motoboy_placa || 'Não informada';
+
+    const {data: moto} = await supabaseClient.from('motoboys').select('lat, lng').eq('id', ent.motoboy_id).maybeSingle();
+    if(moto && moto.lat && moto.lng){
+      if(!map){
+        map = L.map('map').setView([moto.lat, moto.lng], 15);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+      }
+      const motoIcon = L.divIcon({
+        html: '<div style="font-size:24px;background:#fff;border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4)">🛵</div>',
+        className: 'custom-moto-icon', iconSize: [38, 38], iconAnchor: [19, 19]
+      });
+      if(!markerMoto){
+        markerMoto = L.marker([moto.lat, moto.lng], {icon: motoIcon}).addTo(map);
+      } else {
+        markerMoto.setLatLng([moto.lat, moto.lng]);
+      }
+      map.setView([moto.lat, moto.lng], 15);
+    }
   }
-  const {data: e, error} = await supabaseClient.from('entregas').select('*').eq('id', entregaId).maybeSingle();
-  if(error || !e){
-    document.getElementById('statusEntrega').innerText = 'Entrega não encontrada';
-    return;
-  }
-
-  document.getElementById('pinCliente').innerText = e.codigo_entrega || '----';
-  
-  let textoStatus = 'Aguardando Motoboy Aceitar';
-  if(e.status === 'aceita') textoStatus = '🛵 Motoboy a caminho da Loja';
-  if(e.status === 'retirada') textoStatus = '🚀 Pedido Retirado / Em Rota de Entrega';
-  if(e.status === 'entregue') textoStatus = '✅ Pedido Entregue com Sucesso!';
-  if(e.status === 'cancelado') textoStatus = '❌ Pedido Cancelado';
-
-  document.getElementById('statusEntrega').innerText = textoStatus;
-
-  document.getElementById('detalhes').innerHTML = `
-    <b>Loja:</b> ${e.loja_nome || 'Estabelecimento'}<br>
-    <b>Cliente:</b> ${e.cliente_nome}<br>
-    <b>Endereço:</b> ${e.endereco}<br>
-    ${e.motoboy_nome ? `<hr style="border:0;border-top:1px solid #ddd;margin:10px 0"><b>🛵 Motoboy:</b> ${e.motoboy_nome}<br><b>Placa da Moto:</b> ${e.motoboy_placa || 'Não informada'}` : '<br><small>Aguardando motoboy aceitar para ver dados da moto.</small>'}
-  `;
 }
 
-carregarRastreio();
-setInterval(carregarRastreio, 10000);
+atualizarRastreio();
+setInterval(atualizarRastreio, 5000);
 </script>
 </body></html>
