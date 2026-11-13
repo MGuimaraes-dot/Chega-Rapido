@@ -76,7 +76,7 @@
 
     <!-- SEÇÃO 1: NOVA ENTREGA NA FILA (Com cronômetro de 20s) -->
     <div id="card-oferta-entrega" class="card" style="display: none; border: 2px solid #28a745;">
-        <h3 style="margin-top: 0; color: #28a745;">⚡ Nova Entrega Disponível!</h3>
+        <h3 style="margin-top: 0; color: #28a745;">⚡ Nova Entrega Disponível (Sua Vez na Fila)!</h3>
         <p><strong>Loja:</strong> <span id="lbl-loja"></span></p>
         <p><strong>Retirar em:</strong> <span id="lbl-retirada"></span></p>
         <p><strong>Entregar em:</strong> <span id="lbl-destino"></span></p>
@@ -126,18 +126,17 @@
             }
         };
 
-        // Função de alerta sonoro (bipe) e vibração para nova entrega
         function tocarAlertaNovoPedido() {
             try {
                 if (navigator.vibrate) {
-                    navigator.vibrate([300, 150, 300, 150, 300]); // Vibração em padrão de alerta
+                    navigator.vibrate([300, 150, 300, 150, 300]);
                 }
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Tom alto de bipe
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
                 gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
                 
                 osc.connect(gain);
@@ -280,25 +279,67 @@
             const containerAndamento = document.getElementById('lista-entregas-andamento');
 
             try {
-                const { data: ofertas } = await db
+                // 1. Verifica se já tem uma oferta direcionada especificamente para este motoboy na fila sequencial
+                const { data: ofertasDiretas } = await db
                     .from('entregas')
                     .select('*')
                     .eq('motoboy_atual_id', motoboyLogadoId)
                     .eq('status', 'pendente');
 
-                if (ofertas && ofertas.length > 0) {
-                    let oferta = ofertas[0];
-                    
-                    // Dispara som e vibração se for uma nova oferta na tela
-                    if (entregaOfertaId !== oferta.id) {
+                let ofertaAtiva = null;
+
+                if (ofertasDiretas && ofertasDiretas.length > 0) {
+                    ofertaAtiva = ofertasDiretas[0];
+                } else {
+                    // 2. Se não tem oferta direta, verifica se existem pedidos pendentes na fila geral sem dono atribuído
+                    const { data: pendentesGerais } = await db
+                        .from('entregas')
+                        .select('*')
+                        .eq('status', 'pendente')
+                        .is('motoboy_atual_id', null)
+                        .order('created_at', { ascending: true });
+
+                    if (pendentesGerais && pendentesGerais.length > 0) {
+                        // Filtra para ver quais motoboys estão ONLINE e livres para pegar a vez
+                        const { data: motoboysOnline } = await db
+                            .from('motoboys')
+                            .select('id')
+                            .eq('online', true)
+                            .order('id', { ascending: true }); // Ordem da fila baseada no ID/Cadastro
+
+                        if (motoboysOnline && motoboysOnline.length > 0) {
+                            // O primeiro motoboy online da lista assume o primeiro pedido pendente da fila
+                            const primeiroDaFilaId = motoboysOnline[0].id;
+                            
+                            if (primeiroDaFilaId === motoboyLogadoId) {
+                                // Sou eu o primeiro da fila! Atribuo o pedido para mim temporariamente
+                                const pedidoParaMim = pendentesGerais[0];
+                                
+                                // Verifica se eu já recusei este pedido antes
+                                const recusados = pedidoParaMim.recusados_por || [];
+                                if (!recusados.includes(motoboyLogadoId)) {
+                                    await db.from('entregas')
+                                        .update({ motoboy_atual_id: motoboyLogadoId })
+                                        .eq('id', pedidoParaMim.id)
+                                        .is('motoboy_atual_id', null);
+                                    
+                                    ofertaAtiva = pedidoParaMim;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (ofertaAtiva) {
+                    if (entregaOfertaId !== ofertaAtiva.id) {
                         tocarAlertaNovoPedido();
                     }
 
-                    entregaOfertaId = oferta.id;
+                    entregaOfertaId = ofertaAtiva.id;
 
-                    document.getElementById('lbl-loja').innerText = oferta.loja_nome || "Loja Parceira";
-                    document.getElementById('lbl-retirada').innerText = oferta.endereco_retirada || "-";
-                    document.getElementById('lbl-destino').innerText = oferta.endereco || "-";
+                    document.getElementById('lbl-loja').innerText = ofertaAtiva.loja_nome || "Loja Parceira";
+                    document.getElementById('lbl-retirada').innerText = ofertaAtiva.endereco_retirada || "-";
+                    document.getElementById('lbl-destino').innerText = ofertaAtiva.endereco || "-";
 
                     cardOferta.style.display = 'block';
                     sinalGps.style.display = 'block';
@@ -309,6 +350,7 @@
                     clearInterval(timerInterval);
                 }
 
+                // 3. Busca entregas em andamento deste motoboy (Permite agrupar se houver mais de uma aceita)
                 const { data: andamentos } = await db
                     .from('entregas')
                     .select('*')
@@ -344,7 +386,7 @@
                     containerAndamento.innerHTML = htmlAndamento;
                 } else {
                     containerAndamento.innerHTML = `<p style="color: #777; font-size: 13px;">Nenhuma entrega em andamento no momento.</p>`;
-                    if (!ofertas || ofertas.length === 0 && !onlineAtual) {
+                    if (!ofertaAtiva && !onlineAtual) {
                         sinalGps.style.display = 'none';
                     }
                 }
@@ -406,6 +448,7 @@
                 listaRecusados.push(motoboyLogadoId);
             }
 
+            // Libera o pedido da minha tela e adiciona à lista de recusados para ir para o próximo da fila
             await db
                 .from('entregas')
                 .update({ 
