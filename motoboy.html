@@ -38,7 +38,7 @@
         <button class="btn-config" onclick="abrirConfig(true)" title="Configurações & Extrato">⚙️</button>
     </div>
 
-    <!-- MODAL DE CONFIGURAÇÕES, EXTRATO E FILTRO POR DATA (Sem troca de CPF) -->
+    <!-- MODAL DE CONFIGURAÇÕES, EXTRATO E FILTRO POR DATA -->
     <div id="modalConfig" class="config-modal">
         <div class="config-content">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -125,6 +125,30 @@
                   .subscribe();
             }
         };
+
+        // Função de alerta sonoro (bipe) e vibração para nova entrega
+        function tocarAlertaNovoPedido() {
+            try {
+                if (navigator.vibrate) {
+                    navigator.vibrate([300, 150, 300, 150, 300]); // Vibração em padrão de alerta
+                }
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Tom alto de bipe
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.4);
+            } catch (e) {
+                console.log("Áudio bloqueado aguardando interação na tela.");
+            }
+        }
 
         function atualizarBotaoOnlineUI() {
             const btn = document.getElementById('btnOnlineToggle');
@@ -264,6 +288,12 @@
 
                 if (ofertas && ofertas.length > 0) {
                     let oferta = ofertas[0];
+                    
+                    // Dispara som e vibração se for uma nova oferta na tela
+                    if (entregaOfertaId !== oferta.id) {
+                        tocarAlertaNovoPedido();
+                    }
+
                     entregaOfertaId = oferta.id;
 
                     document.getElementById('lbl-loja').innerText = oferta.loja_nome || "Loja Parceira";
@@ -403,7 +433,6 @@
                 return alert('Por favor, informe o motivo do cancelamento.');
             }
 
-            // Salva o motivo na coluna 'observacao' que já existe no Supabase sem dar erro de cache
             const { error } = await db
                 .from('entregas')
                 .update({ 
