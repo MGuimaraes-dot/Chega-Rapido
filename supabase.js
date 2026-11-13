@@ -1,32 +1,53 @@
-// supabase.js - ENTREAQUI - PRODUÇÃO
-const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
-const SUPABASE_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
+const SUPABASE_URL = 'SUA_URL_DO_SUPABASE';
+const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON_DO_SUPABASE';
 
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-window.supabaseClient = supabaseClient;
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const getLoja = () => { try { return JSON.parse(localStorage.getItem('loja') || 'null'); } catch(e) { return null; } };
-const getMotoboy = () => { try { return JSON.parse(localStorage.getItem('motoboy') || 'null'); } catch(e) { return null; } };
-const setLoja = (l) => localStorage.setItem('loja', JSON.stringify(l));
-const setMotoboy = (m) => localStorage.setItem('motoboy', JSON.stringify(m));
+function soNumeros(v) {
+  return (v || '').replace(/\D/g, '');
+}
 
-const soNumeros = (v) => (v || '').toString().replace(/\D/g, '');
+function getLoja() {
+  try {
+    return JSON.parse(localStorage.getItem('loja'));
+  } catch (e) {
+    return null;
+  }
+}
 
-// Cálculo centralizado de frete:
-// Motoboy: até 5km = R$ 7 | acima de 5km = R$ 9 | chuva + R$ 2
-// Loja:    até 5km = R$ 9 | acima de 5km = R$ 11 | chuva + R$ 2 (integral para o motoboy)
-const calcularValoresFrete = (km, chovendo) => {
-  const k = Number(km || 0);
-  const baseMoto = k <= 5 ? 7 : 9;
-  const baseLoja = k <= 5 ? 9 : 11;
-  const extraChuva = chovendo ? 2 : 0;
+function getMotoboy() {
+  try {
+    return JSON.parse(localStorage.getItem('motoboy'));
+  } catch (e) {
+    return null;
+  }
+}
+
+// Regra Financeira EntreAqui (Normal, Chuva, Pico e Combo)
+function calcularValoresFrete(km, chovendo = false, pico = false, ehCombo = false) {
+  if (ehCombo) {
+    // Combo: Motoboy ganha +R$ 5,00 na segunda entrega da mesma loja, Loja paga R$ 7,00 (Margem R$ 2,00 mantida)
+    return {
+      valorMotoboy: 5.00,
+      valorLoja: 7.00
+    };
+  }
+
+  let baseMotoboy = km <= 5 ? 7.00 : 9.00;
+  let baseLoja = km <= 5 ? 9.00 : 11.00;
+
+  if (chovendo) {
+    baseMotoboy += 2.00;
+    baseLoja += 2.00;
+  }
+
+  if (pico) {
+    baseMotoboy += 2.00;
+    baseLoja += 2.00;
+  }
 
   return {
-    valorMotoboy: baseMoto + extraChuva,
-    valorLoja: baseLoja + extraChuva,
-    lucroApp: (baseLoja - baseMoto)
+    valorMotoboy: baseMotoboy,
+    valorLoja: baseLoja
   };
-};
-
-// Mantido para compatibilidade
-const calcPreco = (km, chovendo) => calcularValoresFrete(km, chovendo).valorMotoboy;
+}
