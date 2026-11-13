@@ -3,37 +3,51 @@
 <title>Admin - EntreAqui</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase.js"></script>
-<!-- jsPDF para gerar extratos em PDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
 header{background:#111;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:20px}
-.card{max-width:650px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
-.tabs{display:flex;background:#f1f1f1;border-radius:12px;padding:4px;margin-bottom:14px}.tabs button{flex:1;padding:11px;border:0;border-radius:9px;font-weight:800;cursor:pointer;background:transparent;font-size:12px}
+.card{max-width:720px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.tabs{display:flex;background:#f1f1f1;border-radius:12px;padding:4px;margin-bottom:14px;gap:4px}.tabs button{flex:1;padding:10px 6px;border:0;border-radius:9px;font-weight:800;cursor:pointer;background:transparent;font-size:12px}
 .tabs button.ativo{background:#111;color:#fff}
 label{font-size:13px;font-weight:700;display:block;margin:12px 0 4px}
 input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;font-size:14px}
 .btn{width:100%;padding:12px;border:0;border-radius:12px;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px}
-.btn-green{background:#00a650;color:#fff}.btn-red{background:#fee2e2;color:#991b1b}.btn-gray{background:#eee;color:#333}.btn-dark{background:#111;color:#fff}.btn-blue{background:#1976d2;color:#fff}
+.btn-green{background:#00a650;color:#fff}.btn-red{background:#fee2e2;color:#991b1b}.btn-gray{background:#eee;color:#333}.btn-dark{background:#111;color:#fff}.btn-blue{background:#1976d2;color:#fff}.btn-orange{background:#ff5a00;color:#fff}
 .item{border:1px solid #eee;border-radius:12px;padding:12px;margin-top:10px;background:#fafafa}
 .badge{padding:4px 8px;border-radius:20px;font-size:11px;font-weight:700;background:#fff3e0;color:#e65100}
 .small{font-size:12px;color:#666;line-height:1.4}
 .fotos a{margin-right:12px;font-size:12px;font-weight:700;color:#1976d2}
-.tabela-rel{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px}
+.tabela-rel{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}
 .tabela-rel th, .tabela-rel td{border:1px solid #ddd;padding:8px;text-align:left}
 .tabela-rel th{background:#f3f4f6}
+#mapRadar{width:100%;height:380px;border-radius:14px;margin-top:12px;border:2px solid #111}
+.row-dinamica{display:flex;gap:10px}
+.row-dinamica > div{flex:1}
 </style></head><body>
 <header>📦 ENTREAQUI - ADMIN</header>
 <div class="card">
 <div class="tabs">
 <button type="button" id="tabMoto" class="ativo" onclick="trocarAba('moto')">🛵 Motoboys</button>
 <button type="button" id="tabLoja" onclick="trocarAba('loja')">🏪 Lojas</button>
-<button type="button" id="tabRel" onclick="trocarAba('rel')">📊 Relatórios & PDF</button>
+<button type="button" id="tabRadar" onclick="trocarAba('radar')">🗺️ Radar Frota</button>
+<button type="button" id="tabRel" onclick="trocarAba('rel')">📊 Relatórios & Acerto</button>
 </div>
 
 <!-- ABA MOTOBOYS -->
 <div id="abaMoto">
-<label>🌧️ Status da Chuva (Adiciona R$ 2,00 integral para o motoboy)</label>
-<button id="btnChuva" class="btn btn-gray" onclick="alternarChuva()">Carregando...</button>
+<div class="row-dinamica">
+  <div>
+    <label>🌧️ Clima (Chuva +R$ 2)</label>
+    <button id="btnChuva" class="btn btn-gray" onclick="alternarChuva()">Carregando...</button>
+  </div>
+  <div>
+    <label>🔥 Movimento (Pico +R$ 2)</label>
+    <button id="btnPico" class="btn btn-gray" onclick="alternarPico()">Carregando...</button>
+  </div>
+</div>
+
 <h3>🟡 Motoboys Pendentes</h3>
 <div id="pendentesMoto"><p class="small">Carregando...</p></div>
 <h3>✅ Motoboys Aprovados</h3>
@@ -52,11 +66,21 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
 <button class="btn btn-gray" onclick="carregarTudo()">🔄 Atualizar Lojas</button>
 </div>
 
-<!-- ABA RELATORIOS / FINANCEIRO -->
+<!-- ABA RADAR AO VIVO -->
+<div id="abaRadar" style="display:none">
+  <h3 style="margin-top:0">🗺️ Radar ao Vivo da Frota Online</h3>
+  <p class="small">Acompanhe em tempo real onde estão os motoboys disponíveis na cidade.</p>
+  <div id="mapRadar"></div>
+  <button class="btn btn-dark" onclick="atualizarRadar()">🔄 Atualizar Posições Agora</button>
+</div>
+
+<!-- ABA RELATORIOS / FINANCEIRO / BAIXA DE CICLO -->
 <div id="abaRel" style="display:none">
-<h3>📊 Relatório Detalhado de Desempenho e Financeiro</h3>
-<label>Data Início</label><input type="date" id="dataIni">
-<label>Data Fim</label><input type="date" id="dataFim">
+<h3>📊 Relatório Detalhado & Fechamento de Ciclo</h3>
+<div class="row-dinamica">
+  <div><label>Data Início</label><input type="date" id="dataIni"></div>
+  <div><label>Data Fim</label><input type="date" id="dataFim"></div>
+</div>
 <button class="btn btn-green" onclick="gerarRelatorioConsolidado()">Gerar Relatório Completo</button>
 <div id="relGeral" style="margin-top:14px;font-size:13px"></div>
 
@@ -74,111 +98,150 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
 </div>
 
 <script>
+let mapRadar = null;
+let radarMarkers = [];
+
 function trocarAba(t){
   document.getElementById('abaMoto').style.display = t==='moto'?'block':'none';
   document.getElementById('abaLoja').style.display = t==='loja'?'block':'none';
+  document.getElementById('abaRadar').style.display = t==='radar'?'block':'none';
   document.getElementById('abaRel').style.display = t==='rel'?'block':'none';
+  
   document.getElementById('tabMoto').className = t==='moto'?'ativo':'';
   document.getElementById('tabLoja').className = t==='loja'?'ativo':'';
+  document.getElementById('tabRadar').className = t==='radar'?'ativo':'';
   document.getElementById('tabRel').className = t==='rel'?'ativo':'';
+  
   if(t==='rel') carregarSelectsPdf();
+  if(t==='radar') atualizarRadar();
 }
 
-async function carregarChuva(){
+async function carregarConfigDinamica(){
   try {
     const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
-    const b = document.getElementById('btnChuva');
-    if(!b) return;
+    const bChuva = document.getElementById('btnChuva');
+    const bPico = document.getElementById('btnPico');
+    
     const chov = data?.chovendo;
-    b.innerText = chov ? '🌧️ SIM - Chovendo (+R$ 2,00 para o motoboy)' : '☀️ NÃO - Sem chuva';
-    b.style.background = chov ? '#3b82f6' : '#eee';
-    b.style.color = chov ? '#fff' : '#000';
-  } catch(e) {
-    const b = document.getElementById('btnChuva');
-    if(b) b.innerText = '☀️ NÃO - Sem chuva';
-  }
+    bChuva.innerText = chov ? '🌧️ SIM (+R$ 2,00)' : '☀️ NÃO';
+    bChuva.style.background = chov ? '#3b82f6' : '#eee';
+    bChuva.style.color = chov ? '#fff' : '#000';
+
+    const pico = data?.horario_pico;
+    bPico.innerText = pico ? '🔥 ATIVO (+R$ 2,00)' : '⚪ NORMAL';
+    bPico.style.background = pico ? '#ff5a00' : '#eee';
+    bPico.style.color = pico ? '#fff' : '#000';
+  } catch(e) {}
 }
 
 async function alternarChuva(){
-  try {
-    const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
-    const novo = !(data?.chovendo);
-    if(!data){
-      await supabaseClient.from('config').insert([{id:1, chovendo:novo}]);
-    } else {
-      await supabaseClient.from('config').update({chovendo:novo}).eq('id',1);
+  const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
+  const novo = !(data?.chovendo);
+  if(!data) await supabaseClient.from('config').insert([{id:1, chovendo:novo}]);
+  else await supabaseClient.from('config').update({chovendo:novo}).eq('id',1);
+  carregarConfigDinamica();
+}
+
+async function alternarPico(){
+  const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
+  const novo = !(data?.horario_pico);
+  if(!data) await supabaseClient.from('config').insert([{id:1, horario_pico:novo}]);
+  else await supabaseClient.from('config').update({horario_pico:novo}).eq('id',1);
+  carregarConfigDinamica();
+}
+
+async function atualizarRadar(){
+  if(!mapRadar){
+    mapRadar = L.map('mapRadar').setView([-20.45, -50.55], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapRadar);
+  }
+  setTimeout(() => mapRadar.invalidateSize(), 200);
+
+  radarMarkers.forEach(m => mapRadar.removeLayer(m));
+  radarMarkers = [];
+
+  const {data: motosOnline} = await supabaseClient.from('motoboys').select('*').eq('online', true);
+  const bounds = [];
+
+  (motosOnline || []).forEach(m => {
+    if(m.lat && m.lng){
+      const motoIcon = L.divIcon({
+        html: `<div style="background:#00a650;color:#fff;padding:4px 8px;border-radius:12px;font-weight:800;font-size:11px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.4)">🛵 ${(m.nome_completo||m.nome||'').split(' ')[0]}</div>`,
+        className: 'radar-moto-icon', iconAnchor: [25, 15]
+      });
+      const marker = L.marker([m.lat, m.lng], {icon: motoIcon})
+        .addTo(mapRadar)
+        .bindPopup(`<b>${m.nome_completo||m.nome}</b><br>Placa: ${m.placa_moto||m.placa||'N/A'}`);
+      radarMarkers.push(marker);
+      bounds.push([m.lat, m.lng]);
     }
-    carregarChuva();
-    alert(novo ? '🌧️ Chuva ATIVADA!' : '☀️ Chuva DESATIVADA.');
-  } catch(e) {
-    alert('Erro: ' + e.message);
+  });
+
+  if(bounds.length > 0){
+    mapRadar.fitBounds(bounds, {padding: [40, 40], maxZoom: 15});
   }
 }
 
 async function carregarTudo(){
-  carregarChuva();
+  carregarConfigDinamica();
 
   // MOTOBOYS PENDENTES
   try {
     const {data: pendM} = await supabaseClient.from('motoboys').select('*').eq('status','pendente').order('created_at',{ascending:true});
     document.getElementById('pendentesMoto').innerHTML=(pendM||[]).map(m=>`
       <div class="item"><b>${m.nome_completo||m.nome||''}</b><br>
-      <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto\vert{}\vert{}m.placa\vert{}\vert{}''} \vert{} Pix:${m.chave_pix||'Não informada'}</span><br>
+      <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''} | Pix: ${m.chave_pix||'Não informada'}</span><br>
       <div class="fotos"><a href="${m.foto_cnh||m.foto_documento_url||'#'}" target="_blank">📄 CNH</a><a href="${m.foto_crlv||'#'}" target="_blank">📄 CRLV</a><a href="${m.foto_selfie||m.foto_selfie_url||'#'}" target="_blank">🤳 Selfie</a></div>
       <button class="btn btn-green" onclick="aprovarMoto('${m.id}','${(m.telefone||m.whatsapp||'').replace(/\D/g,'')}')">✅ Aprovar Motoboy</button>
       <button class="btn btn-red" onclick="reprovarMoto('${m.id}')">❌ Reprovar</button>
       </div>`).join('')||'<p class="small">Nenhum motoboy pendente</p>';
-  } catch(err) {
-    document.getElementById('pendentesMoto').innerHTML='<p class="small">Erro ao carregar motoboys pendentes</p>';
-  }
+  } catch(err) {}
 
-  // MOTOBOYS APROVADOS
+  // MOTOBOYS APROVADOS (com média de estrelas)
   try {
     const {data: aprM} = await supabaseClient.from('motoboys').select('*').eq('status','aprovado').order('created_at',{ascending:false});
-    document.getElementById('aprovadosMoto').innerHTML=(aprM||[]).map(m=>`
-      <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.online?'🟢 ONLINE':'⚪ OFFLINE'}</span><br>
-      <span class="small">CPF: ${m.cpf} | Pix: ${m.chave_pix\vert{}\vert{}'N/A'} \vert{} Placa:${m.placa_moto||m.placa||'N/A'}</span><br>
-      <button class="btn btn-red" onclick="bloquearMoto('${m.id}')">🔴 Bloquear Motoboy</button></div>`).join('')||'<p class="small">Nenhum motoboy aprovado</p>';
-  } catch(err) {
-    document.getElementById('aprovadosMoto').innerHTML='';
-  }
+    const {data: avaliacoes} = await supabaseClient.from('entregas').select('motoboy_id, avaliacao_motoboy').not('avaliacao_motoboy', 'is', null);
 
-  // MOTOBOYS BLOQUEADOS/REJEITADOS
+    document.getElementById('aprovadosMoto').innerHTML=(aprM||[]).map(m=>{
+      const notas = (avaliacoes||[]).filter(a => a.motoboy_id === m.id).map(a => a.avaliacao_motoboy);
+      const media = notas.length > 0 ? (notas.reduce((a,b)=>a+b,0)/notas.length).toFixed(1) : 'Sem nota';
+      return `
+      <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.online?'🟢 ONLINE':'⚪ OFFLINE'}</span> | ⭐ <b>${media}</b><br>
+      <span class="small">CPF: ${m.cpf} | Pix: ${m.chave_pix||'N/A'} | Placa: ${m.placa_moto||m.placa||'N/A'}</span><br>
+      <button class="btn btn-red" onclick="bloquearMoto('${m.id}')">🔴 Bloquear Motoboy</button></div>`;
+    }).join('')||'<p class="small">Nenhum motoboy aprovado</p>';
+  } catch(err) {}
+
+  // MOTOBOYS BLOQUEADOS
   try {
     const {data: bloM} = await supabaseClient.from('motoboys').select('*').in('status',['bloqueado','rejeitado']).order('created_at',{ascending:false});
     document.getElementById('bloqueadosMoto').innerHTML=(bloM||[]).map(m=>`
       <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.status}</span><br>
-      <span class="small">CPF: ${m.cpf} \vert{} Placa:${m.placa_moto||m.placa||''}</span><br>
+      <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''}</span><br>
       <button class="btn btn-green" onclick="desbloquearMoto('${m.id}')">✅ Desbloquear</button></div>`).join('')||'<p class="small">Nenhum bloqueado</p>';
-  } catch(err) {
-    document.getElementById('bloqueadosMoto').innerHTML='';
-  }
+  } catch(err) {}
 
   // LOJAS PENDENTES
   try {
     const {data: pendL} = await supabaseClient.from('lojas').select('*').eq('status','pendente').order('created_at',{ascending:true});
     document.getElementById('pendentesLoja').innerHTML=(pendL||[]).map(l=>`
       <div class="item"><b>${l.nome_fantasia||l.nome||''}</b><br>
-      <span class="small">CNPJ: ${l.cnpj} | Responsável: ${l.nome_responsavel\vert{}\vert{}'N/A'} \vert{} Whats:${l.whatsapp||''}</span><br>
+      <span class="small">CNPJ: ${l.cnpj} | Responsável: ${l.nome_responsavel||'N/A'} | Whats: ${l.whatsapp||''}</span><br>
       <span class="small">Retirada: ${l.endereco_retirada||l.endereco||''}</span><br>
       <div class="fotos"><a href="${l.foto_fachada||'#'}" target="_blank">🏪 Fachada</a><a href="${l.foto_selfie||'#'}" target="_blank">🤳 Selfie Responsável</a></div>
       <button class="btn btn-green" onclick="aprovarLoja('${l.id}','${(l.whatsapp||'').replace(/\D/g,'')}')">✅ Aprovar Loja</button>
       <button class="btn btn-red" onclick="reprovarLoja('${l.id}')">❌ Rejeitar</button>
       </div>`).join('')||'<p class="small">Nenhuma loja pendente</p>';
-  } catch(err) {
-    document.getElementById('pendentesLoja').innerHTML='<p class="small">Erro ao carregar lojas pendentes</p>';
-  }
+  } catch(err) {}
 
   // LOJAS APROVADAS
   try {
     const {data: aprL} = await supabaseClient.from('lojas').select('*').eq('status','aprovado').order('created_at',{ascending:false});
     document.getElementById('aprovadasLoja').innerHTML=(aprL||[]).map(l=>`
       <div class="item"><b>${l.nome_fantasia||l.nome||''}</b> - <span class="badge">APROVADA</span><br>
-      <span class="small">CNPJ: ${l.cnpj} | Retirada: ${l.endereco_retirada\vert{}\vert{}l.endereco\vert{}\vert{}''} \vert{} Whats:${l.whatsapp||''}</span><br>
+      <span class="small">CNPJ: ${l.cnpj} | Retirada: ${l.endereco_retirada||l.endereco||''} | Whats: ${l.whatsapp||''}</span><br>
       <button class="btn btn-red" onclick="bloquearLoja('${l.id}')">🔴 Bloquear Loja</button></div>`).join('')||'<p class="small">Nenhuma loja aprovada</p>';
-  } catch(err) {
-    document.getElementById('aprovadasLoja').innerHTML='';
-  }
+  } catch(err) {}
 }
 
 async function aprovarMoto(id, tel){
@@ -198,11 +261,24 @@ async function aprovarLoja(id, tel){
 async function reprovarLoja(id){ if(confirm('Rejeitar?')){ await supabaseClient.from('lojas').update({status:'rejeitado'}).eq('id',id); carregarTudo(); } }
 async function bloquearLoja(id){ if(confirm('Bloquear?')){ await supabaseClient.from('lojas').update({status:'bloqueado', bloqueado:true}).eq('id',id); carregarTudo(); } }
 
+async function baixarCicloMotoboy(motoId){
+  if(!confirm('Confirmar que todas as corridas em aberto deste motoboy foram PAGAS?')) return;
+  await supabaseClient.from('entregas').update({pago_motoboy: true}).eq('motoboy_id', motoId).eq('status','entregue').eq('pago_motoboy', false);
+  alert('✅ Ciclo do motoboy baixado como PAGO!');
+  gerarRelatorioConsolidado();
+}
+
+async function baixarCicloLoja(lojaId){
+  if(!confirm('Confirmar que todas as faturas em aberto desta loja foram RECEBIDAS?')) return;
+  await supabaseClient.from('entregas').update({pago_loja: true}).eq('loja_id', lojaId).eq('status','entregue').eq('pago_loja', false);
+  alert('✅ Ciclo da loja baixado como RECEBIDO!');
+  gerarRelatorioConsolidado();
+}
+
 async function gerarRelatorioConsolidado(){
   const ini = document.getElementById('dataIni').value;
   const fim = document.getElementById('dataFim').value;
 
-  // Busca todas as entregas e motoboys/lojas
   let qEnt = supabaseClient.from('entregas').select('*');
   if(ini) qEnt = qEnt.gte('created_at', ini + 'T00:00:00');
   if(fim) qEnt = qEnt.lte('created_at', fim + 'T23:59:59');
@@ -224,56 +300,52 @@ async function gerarRelatorioConsolidado(){
   let lucroPlataforma = totalReceberLojas - totalPagarMotoboys;
 
   // Estatísticas por Motoboy
-  let htmlMotoboys = `<h4>🛵 Desempenho por Motoboy</h4>
+  let htmlMotoboys = `<h4>🛵 Desempenho & Acerto por Motoboy</h4>
     <table class="tabela-rel">
-      <tr><th>Motoboy</th><th>Concluídas</th><th>Aceitas</th><th>Recusadas</th><th>Taxa Aceit.</th><th>Taxa Recusa</th><th>A Pagar</th></tr>`;
+      <tr><th>Motoboy</th><th>Concl.</th><th>Aceitas</th><th>Recus.</th><th>Tx Aceit.</th><th>A Pagar (Aberto)</th><th>Ação</th></tr>`;
 
   (motoboys || []).forEach(m => {
     const entreguesMoto = concluidas.filter(e => e.motoboy_id === m.id).length;
     const aceitasMoto = (entregas || []).filter(e => e.motoboy_id === m.id && ['aceita','retirada','entregue'].includes(e.status)).length;
     
-    // Conta quantas vezes o ID do motoboy está na lista de recusados_por
     let recusadasMoto = 0;
-    (entregas || []).forEach(e => {
-      const recs = e.recusados_por || [];
-      if(recs.includes(m.id)) recusadasMoto++;
-    });
+    (entregas || []).forEach(e => { if((e.recusados_por || []).includes(m.id)) recusadasMoto++; });
 
-    const totalSolicitacoes = aceitasMoto + recusadasMoto;
-    const taxaAceitacao = totalSolicitacoes > 0 ? ((aceitasMoto / totalSolicitacoes) * 100).toFixed(1) : '0.0';
-    const taxaRecusa = totalSolicitacoes > 0 ? ((recusadasMoto / totalSolicitacoes) * 100).toFixed(1) : '0.0';
+    const totalSolic = aceitasMoto + recusadasMoto;
+    const taxaAceit = totalSolic > 0 ? ((aceitasMoto / totalSolic) * 100).toFixed(0) : '0';
 
-    let valorPagarMoto = 0;
-    (entregas || []).filter(e => e.motoboy_id === m.id && e.status === 'entregue').forEach(e => {
-      valorPagarMoto += Number(e.valor_motoboy || 0);
+    let valorEmAberto = 0;
+    (entregas || []).filter(e => e.motoboy_id === m.id && e.status === 'entregue' && !e.pago_motoboy).forEach(e => {
+      valorEmAberto += Number(e.valor_motoboy || 0);
     });
 
     htmlMotoboys += `<tr>
-      <td><b>${m.nome_completo \vert{}\vert{} m.nome}</b><br><small>${m.placa_moto || m.placa || ''}</small></td>
+      <td><b>${m.nome_completo || m.nome}</b><br><small>${m.placa_moto || m.placa || ''}</small></td>
       <td>${entreguesMoto}</td>
       <td>${aceitasMoto}</td>
       <td style="color:${recusadasMoto>0?'red':'inherit'}">${recusadasMoto}</td>
-      <td><b>${taxaAceitacao}%</b></td>
-      <td style="color:${Number(taxaRecusa)>30?'red':'inherit'}"><b>${taxaRecusa}%</b></td>
-      <td><b>R$ ${valorPagarMoto.toFixed(2)}</b></td>
+      <td><b>${taxaAceit}%</b></td>
+      <td style="color:#00a650"><b>R$ ${valorEmAberto.toFixed(2)}</b></td>
+      <td>${valorEmAberto > 0 ? `<button onclick="baixarCicloMotoboy('${m.id}')" style="background:#00a650;color:#fff;border:0;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:700;cursor:pointer">✅ Pagar</button>` : '<small>Quitado</small>'}</td>
     </tr>`;
   });
   htmlMotoboys += `</table>`;
 
   // Estatísticas por Loja
-  let htmlLojas = `<h4 style="margin-top:20px">🏪 Desempenho por Loja</h4>
+  let htmlLojas = `<h4 style="margin-top:20px">🏪 Faturamento & Acerto por Loja</h4>
     <table class="tabela-rel">
-      <tr><th>Loja</th><th>Entregas Concluídas</th><th>Total a Pagar (Frete)</th></tr>`;
+      <tr><th>Loja</th><th>Entregas</th><th>A Receber (Aberto)</th><th>Ação</th></tr>`;
 
   (lojas || []).forEach(l => {
     const entregasLoja = concluidas.filter(e => e.loja_id === l.id);
-    let valorLoja = 0;
-    entregasLoja.forEach(e => valorLoja += Number(e.valor_frete_loja || 0));
+    let valorEmAbertoLoja = 0;
+    entregasLoja.filter(e => !e.pago_loja).forEach(e => valorEmAbertoLoja += Number(e.valor_frete_loja || 0));
 
     htmlLojas += `<tr>
       <td><b>${l.nome_fantasia || l.nome}</b></td>
       <td>${entregasLoja.length}</td>
-      <td><b>R$ ${valorLoja.toFixed(2)}</b></td>
+      <td style="color:#ff5a00"><b>R$ ${valorEmAbertoLoja.toFixed(2)}</b></td>
+      <td>${valorEmAbertoLoja > 0 ? `<button onclick="baixarCicloLoja('${l.id}')" style="background:#111;color:#fff;border:0;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:700;cursor:pointer">✅ Recebido</button>` : '<small>Quitado</small>'}</td>
     </tr>`;
   });
   htmlLojas += `</table>`;
@@ -281,4 +353,111 @@ async function gerarRelatorioConsolidado(){
   document.getElementById('relGeral').innerHTML = `
     <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:12px;border-radius:10px">
       <b>Resumo Geral do Período:</b><br>
-      •
+      • Entregas Concluídas: <b>${concluidas.length}</b><br>
+      • Total Gerado pelas Lojas: <b>R$ ${totalReceberLojas.toFixed(2)}</b><br>
+      • Total Gerado aos Motoboys: <b>R$ ${totalPagarMotoboys.toFixed(2)}</b><br>
+      • <span style="color:#166534">Lucro Bruto da Plataforma: <b>R$ ${lucroPlataforma.toFixed(2)}</b></span>
+    </div>
+    ${htmlMotoboys}
+    ${htmlLojas}
+  `;
+}
+
+async function carregarSelectsPdf(){
+  const {data: motos} = await supabaseClient.from('motoboys').select('id, nome_completo, nome, placa_moto, placa').eq('status','aprovado');
+  document.getElementById('selectMotoboyPdf').innerHTML = '<option value="">-- Escolha o Motoboy --</option>' + (motos||[]).map(m=>`<option value="${m.id}">${m.nome_completo||m.nome} (${m.placa_moto||m.placa||'N/A'})</option>`).join('');
+
+  const {data: lojas} = await supabaseClient.from('lojas').select('id, nome_fantasia, nome').eq('status','aprovado');
+  document.getElementById('selectLojaPdf').innerHTML = '<option value="">-- Escolha a Loja --</option>' + (lojas||[]).map(l=>`<option value="${l.id}">${l.nome_fantasia||l.nome}</option>`).join('');
+}
+
+async function baixarPdfMotoboy(){
+  const motoId = document.getElementById('selectMotoboyPdf').value;
+  if(!motoId) return alert('Selecione um motoboy');
+  
+  const {data: moto} = await supabaseClient.from('motoboys').select('*').eq('id', motoId).maybeSingle();
+  const {data: entregas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).eq('status','entregue').order('entregue_em',{ascending:false});
+  
+  let total = 0;
+  (entregas||[]).forEach(e => total += Number(e.valor_motoboy||0));
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  
+  doc.setFontSize(16); doc.text('EXTRATO DE GANHOS - ENTREAQUI', 14, 20);
+  doc.setFontSize(11);
+  doc.text(`Motoboy: ${moto.nome_completo||moto.nome}`, 14, 30);
+  doc.text(`CPF: ${moto.cpf} | Placa: ${moto.placa_moto||moto.placa||'N/A'}`, 14, 37);
+  doc.text(`Chave Pix: ${moto.chave_pix||'Não informada'}`, 14, 44);
+  
+  let y = 55;
+  doc.setFontSize(10);
+  doc.text('Data / Hora', 14, y); doc.text('Loja / Cliente', 60, y); doc.text('Status', 140, y); doc.text('Valor', 175, y);
+  doc.line(14, y+2, 196, y+2);
+  
+  y += 8;
+  (entregas||[]).forEach(e => {
+    if(y > 270){ doc.addPage(); y = 20; }
+    const dataF = (e.entregue_em||'').replace('T',' ').substring(0,16);
+    doc.text(dataF, 14, y);
+    doc.text(`${e.loja_nome} -> ${e.cliente_nome}`.substring(0, 32), 60, y);
+    doc.text(e.pago_motoboy ? 'PAGO' : 'ABERTO', 140, y);
+    doc.text(`R$ ${Number(e.valor_motoboy||0).toFixed(2)}`, 175, y);
+    y += 7;
+  });
+  
+  y += 5;
+  doc.line(14, y, 196, y);
+  y += 8;
+  doc.setFontSize(12);
+  doc.text(`TOTAL ACUMULADO: R$ ${total.toFixed(2)}`, 14, y);
+  
+  doc.save(`extrato-motoboy-${moto.nome_completo||'motoboy'}.pdf`);
+}
+
+async function baixarPdfLoja(){
+  const lojaId = document.getElementById('selectLojaPdf').value;
+  if(!lojaId) return alert('Selecione uma loja');
+  
+  const {data: loja} = await supabaseClient.from('lojas').select('*').eq('id', lojaId).maybeSingle();
+  const {data: entregas} = await supabaseClient.from('entregas').select('*').eq('loja_id', lojaId).eq('status','entregue').order('entregue_em',{ascending:false});
+  
+  let total = 0;
+  (entregas||[]).forEach(e => total += Number(e.valor_frete_loja||0));
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  
+  doc.setFontSize(16); doc.text('EXTRATO DE COBRANÇA - ENTREAQUI', 14, 20);
+  doc.setFontSize(11);
+  doc.text(`Loja: ${loja.nome_fantasia||loja.nome}`, 14, 30);
+  doc.text(`CNPJ: ${loja.cnpj}`, 14, 37);
+  
+  let y = 48;
+  doc.setFontSize(10);
+  doc.text('Data / Hora', 14, y); doc.text('Cliente / Motoboy', 60, y); doc.text('Status', 140, y); doc.text('Frete', 175, y);
+  doc.line(14, y+2, 196, y+2);
+  
+  y += 8;
+  (entregas||[]).forEach(e => {
+    if(y > 270){ doc.addPage(); y = 20; }
+    const dataF = (e.entregue_em||'').replace('T',' ').substring(0,16);
+    doc.text(dataF, 14, y);
+    doc.text(`${e.cliente_nome}`.substring(0, 32), 60, y);
+    doc.text(e.pago_loja ? 'PAGO' : 'ABERTO', 140, y);
+    doc.text(`R$ ${Number(e.valor_frete_loja||0).toFixed(2)}`, 175, y);
+    y += 7;
+  });
+  
+  y += 5;
+  doc.line(14, y, 196, y);
+  y += 8;
+  doc.setFontSize(12);
+  doc.text(`TOTAL ACUMULADO: R$ ${total.toFixed(2)}`, 14, y);
+  
+  doc.save(`cobranca-loja-${loja.nome_fantasia||'loja'}.pdf`);
+}
+
+carregarTudo();
+</script>
+</body></html>
