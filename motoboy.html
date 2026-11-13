@@ -38,7 +38,7 @@
         <button class="btn-config" onclick="abrirConfig(true)" title="Configurações & Extrato">⚙️</button>
     </div>
 
-    <!-- MODAL DE CONFIGURAÇÕES, EXTRATO E FILTRO POR DATA -->
+    <!-- MODAL DE CONFIGURAÇÕES, EXTRATO E FILTRO POR DATA (Sem troca de CPF) -->
     <div id="modalConfig" class="config-modal">
         <div class="config-content">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -46,11 +46,7 @@
                 <button onclick="abrirConfig(false)" style="background:none;border:0;font-size:20px;cursor:pointer">✕</button>
             </div>
             
-            <label>Trocar CPF de Cadastro (Sessão)</label>
-            <input id="inputNovoCpf" type="text" placeholder="Digite o CPF">
-            <button class="btn btn-success" onclick="salvarNovoCpf()">Alternar Motoboy</button>
-
-            <label style="margin-top:12px">Nova Senha</label>
+            <label style="margin-top:4px">Nova Senha</label>
             <input id="novaSenhaMotoboy" type="password" placeholder="Nova senha">
             <button class="btn btn-success" onclick="salvarSenhaMotoboy()">Salvar Senha</button>
             
@@ -118,7 +114,6 @@
         window.onload = async () => {
             await carregarDadosMotoboy();
             if (motoboyLogadoId) {
-                // Puxa status online salvo ou define offline por segurança
                 onlineAtual = localStorage.getItem('motoboy_online') === 'true';
                 atualizarBotaoOnlineUI();
                 verificarPainelMotoboy();
@@ -172,20 +167,12 @@
         window.abrirConfig = function(abrir) {
             document.getElementById('modalConfig').style.display = abrir ? 'flex' : 'none';
             if(abrir) {
-                document.getElementById('inputNovoCpf').value = cpfMotoboyLogado;
                 carregarExtratoMotoboy();
             }
         };
 
         window.sairDaConta = function() {
             localStorage.clear();
-            location.reload();
-        };
-
-        window.salvarNovoCpf = function() {
-            const novoCpf = document.getElementById('inputNovoCpf').value.trim();
-            if(!novoCpf) return alert('Digite um CPF válido.');
-            localStorage.setItem('motoboy_cpf', novoCpf);
             location.reload();
         };
 
@@ -208,7 +195,6 @@
             
             let concluidas = (ent || []).filter(e => e.status === 'entregue');
 
-            // Aplicação do Filtro por Data igual ao ADM
             if (dataInicio || dataFim) {
                 concluidas = concluidas.filter(e => {
                     const dataEntrega = (e.entregue_em || e.created_at || '').substring(0, 10);
@@ -255,7 +241,7 @@
                     const placaExibir = motoboy.placa_moto || motoboy.placa || 'N/A';
                     document.getElementById('nome-motoboy').innerText = `${nomeExibir} | CPF: ${motoboy.cpf} | Placa: ${placaExibir}`;
                 } else {
-                    document.getElementById('nome-motoboy').innerText = "CPF não encontrado. Clique na ⚙️ para configurar.";
+                    document.getElementById('nome-motoboy').innerText = "CPF não encontrado. Verifique sua sessão.";
                 }
             } catch (err) {
                 console.error("Erro crítico:", err);
@@ -270,7 +256,6 @@
             const containerAndamento = document.getElementById('lista-entregas-andamento');
 
             try {
-                // 1. Busca ofertas pendentes direcionadas exclusivamente para este motoboy
                 const { data: ofertas } = await db
                     .from('entregas')
                     .select('*')
@@ -294,7 +279,6 @@
                     clearInterval(timerInterval);
                 }
 
-                // 2. Busca entregas em andamento deste motoboy
                 const { data: andamentos } = await db
                     .from('entregas')
                     .select('*')
@@ -317,7 +301,6 @@
                                 
                                 <button class="btn btn-success" onclick="finalizarEntrega('${ent.id}')">✅ Confirmar Entrega</button>
                                 
-                                <!-- Caixa expandida de Cancelamento com Motivo -->
                                 <button class="btn btn-danger" style="margin-top:6px; background:#e53e3e; font-size:12px; padding:6px" onclick="toggleBoxCancelar('${ent.id}')">❌ Cancelar / Devolver Corrida</button>
                                 
                                 <div id="box-cancelar-${ent.id}" class="box-cancelar">
@@ -420,14 +403,14 @@
                 return alert('Por favor, informe o motivo do cancelamento.');
             }
 
-            // Devolve a entrega para o status pendente e limpa o motoboy_id para voltar à fila geral
+            // Salva o motivo na coluna 'observacao' que já existe no Supabase sem dar erro de cache
             const { error } = await db
                 .from('entregas')
                 .update({ 
                     status: 'pendente', 
                     motoboy_id: null,
                     motoboy_atual_id: null,
-                    observacao_cancelamento: motivo
+                    observacao: 'Cancelado pelo motoboy: ' + motivo
                 })
                 .eq('id', idEntrega)
                 .eq('motoboy_id', motoboyLogadoId);
