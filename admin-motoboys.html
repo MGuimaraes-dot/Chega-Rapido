@@ -1,15 +1,14 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!DOCTYPE html><html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin - EntreAqui</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase.js"></script>
+<!-- jsPDF para gerar extratos em PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
 header{background:#111;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:20px}
-.card{max-width:580px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
-.tabs{display:flex;background:#f1f1f1;border-radius:12px;padding:4px;margin-bottom:14px}.tabs button{flex:1;padding:11px;border:0;border-radius:9px;font-weight:800;cursor:pointer;background:transparent;font-size:13px}
+.card{max-width:600px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.tabs{display:flex;background:#f1f1f1;border-radius:12px;padding:4px;margin-bottom:14px}.tabs button{flex:1;padding:11px;border:0;border-radius:9px;font-weight:800;cursor:pointer;background:transparent;font-size:12px}
 .tabs button.ativo{background:#111;color:#fff}
 label{font-size:13px;font-weight:700;display:block;margin:12px 0 4px}
 input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;font-size:14px}
@@ -19,20 +18,18 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
 .badge{padding:4px 8px;border-radius:20px;font-size:11px;font-weight:700;background:#fff3e0;color:#e65100}
 .small{font-size:12px;color:#666;line-height:1.4}
 .fotos a{margin-right:12px;font-size:12px;font-weight:700;color:#1976d2}
-</style>
-</head>
-<body>
+</style></head><body>
 <header>📦 ENTREAQUI - ADMIN</header>
 <div class="card">
 <div class="tabs">
 <button type="button" id="tabMoto" class="ativo" onclick="trocarAba('moto')">🛵 Motoboys</button>
 <button type="button" id="tabLoja" onclick="trocarAba('loja')">🏪 Lojas</button>
-<button type="button" id="tabRel" onclick="trocarAba('rel')">📊 Financeiro</button>
+<button type="button" id="tabRel" onclick="trocarAba('rel')">📊 Financeiro & PDF</button>
 </div>
 
 <!-- ABA MOTOBOYS -->
 <div id="abaMoto">
-<label>🌧️ Está chovendo? (Adiciona R$ 2,00 por corrida para o motoboy)</label>
+<label>🌧️ Status da Chuva (Adiciona R$ 2,00 integral para o motoboy)</label>
 <button id="btnChuva" class="btn btn-gray" onclick="alternarChuva()">Carregando...</button>
 <h3>🟡 Motoboys Pendentes</h3>
 <div id="pendentesMoto"><p class="small">Carregando...</p></div>
@@ -54,11 +51,22 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
 
 <!-- ABA RELATORIOS / FINANCEIRO -->
 <div id="abaRel" style="display:none">
-<h3>📊 Fechamento Financeiro</h3>
+<h3>📊 Fechamento Consolidado & Extratos</h3>
 <label>Data Início</label><input type="date" id="dataIni">
 <label>Data Fim</label><input type="date" id="dataFim">
-<button class="btn btn-green" onclick="relatorio()">Gerar Relatório Consolidado</button>
-<div id="rel" style="margin-top:14px;font-size:14px"></div>
+<button class="btn btn-green" onclick="gerarRelatorioConsolidado()">Gerar Relatório Geral</button>
+<div id="relGeral" style="margin-top:14px;font-size:14px"></div>
+
+<hr style="border:0;border-top:1px solid #ddd;margin:20px 0">
+
+<h3>📄 Baixar Extratos em PDF</h3>
+<label>Selecione o Motoboy para Extrato</label>
+<select id="selectMotoboyPdf"><option value="">-- Escolha o Motoboy --</option></select>
+<button class="btn btn-blue" onclick="baixarPdfMotoboy()">📥 Baixar PDF Extrato Motoboy</button>
+
+<label style="margin-top:14px">Selecione a Loja para Extrato</label>
+<select id="selectLojaPdf"><option value="">-- Escolha a Loja --</option></select>
+<button class="btn btn-dark" onclick="baixarPdfLoja()">📥 Baixar PDF Cobrança Loja</button>
 </div>
 </div>
 
@@ -70,6 +78,7 @@ function trocarAba(t){
   document.getElementById('tabMoto').className = t==='moto'?'ativo':'';
   document.getElementById('tabLoja').className = t==='loja'?'ativo':'';
   document.getElementById('tabRel').className = t==='rel'?'ativo':'';
+  if(t==='rel') carregarSelectsPdf();
 }
 
 async function carregarChuva(){
@@ -78,7 +87,7 @@ async function carregarChuva(){
     const b = document.getElementById('btnChuva');
     if(!b) return;
     const chov = data?.chovendo;
-    b.innerText = chov ? '🌧️ SIM - Chovendo (+R$ 2,00 por corrida)' : '☀️ NÃO - Sem chuva';
+    b.innerText = chov ? '🌧️ SIM - Chovendo (+R$ 2,00 para o motoboy)' : '☀️ NÃO - Sem chuva';
     b.style.background = chov ? '#3b82f6' : '#eee';
     b.style.color = chov ? '#fff' : '#000';
   } catch(e) {
@@ -97,6 +106,7 @@ async function alternarChuva(){
       await supabaseClient.from('config').update({chovendo:novo}).eq('id',1);
     }
     carregarChuva();
+    alert(novo ? '🌧️ Chuva ATIVADA! R$ 2,00 adicionados aos motoboys.' : '☀️ Chuva DESATIVADA.');
   } catch(e) {
     alert('Erro ao alterar status de chuva: ' + e.message);
   }
@@ -124,7 +134,7 @@ async function carregarTudo(){
     const {data: aprM} = await supabaseClient.from('motoboys').select('*').eq('status','aprovado').order('created_at',{ascending:false});
     document.getElementById('aprovadosMoto').innerHTML=(aprM||[]).map(m=>`
       <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.online?'🟢 ONLINE':'⚪ OFFLINE'}</span><br>
-      <span class="small">CPF: ${m.cpf} | Pix: ${m.chave_pix||'N/A'} | Whats: ${m.telefone||m.whatsapp||''}</span><br>
+      <span class="small">CPF: ${m.cpf} | Pix: ${m.chave_pix||'N/A'} | Aceitas: ${m.total_aceitas||0}</span><br>
       <button class="btn btn-red" onclick="bloquearMoto('${m.id}')">🔴 Bloquear Motoboy</button></div>`).join('')||'<p class="small">Nenhum motoboy aprovado</p>';
   } catch(err) {
     document.getElementById('aprovadosMoto').innerHTML='';
@@ -169,89 +179,143 @@ async function carregarTudo(){
 }
 
 async function aprovarMoto(id, tel){
-  const {error} = await supabaseClient.from('motoboys').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
-  if(error) return alert('Erro: '+error.message);
-  if(tel){
-    const msg = encodeURIComponent('✅ Você foi APROVADO no EntreAqui! Use seu CPF e sua senha cadastrada para entrar no aplicativo.');
-    window.open(`https://wa.me/55${tel}?text=${msg}`,'_blank');
-  }
-  alert('Motoboy aprovado com sucesso!');
-  carregarTudo();
-}
-async function reprovarMoto(id){
-  if(!confirm('Reprovar motoboy?')) return;
-  await supabaseClient.from('motoboys').update({status:'rejeitado', aprovado:false, bloqueado:false}).eq('id',id);
-  carregarTudo();
-}
-async function bloquearMoto(id){
-  if(!confirm('Bloquear motoboy?')) return;
-  await supabaseClient.from('motoboys').update({status:'bloqueado', aprovado:false, bloqueado:true, online:false}).eq('id',id);
-  carregarTudo();
-}
-async function desbloquearMoto(id){
   await supabaseClient.from('motoboys').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
-  carregarTudo();
+  if(tel) window.open(`https://wa.me/55${tel}?text=${encodeURIComponent('✅ Você foi APROVADO no EntreAqui! Acesse o app com seu CPF e senha.')}`,'_blank');
+  alert('Motoboy aprovado!'); carregarTudo();
 }
+async function reprovarMoto(id){ if(confirm('Reprovar?')){ await supabaseClient.from('motoboys').update({status:'rejeitado'}).eq('id',id); carregarTudo(); } }
+async function bloquearMoto(id){ if(confirm('Bloquear?')){ await supabaseClient.from('motoboys').update({status:'bloqueado', bloqueado:true, online:false}).eq('id',id); carregarTudo(); } }
+async function desbloquearMoto(id){ await supabaseClient.from('motoboys').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id); carregarTudo(); }
 
 async function aprovarLoja(id, tel){
-  const {error} = await supabaseClient.from('lojas').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
-  if(error) return alert('Erro: '+error.message);
-  if(tel){
-    const msg = encodeURIComponent('✅ Sua Loja foi APROVADA no EntreAqui! Use seu CNPJ e sua senha para acessar o painel de entregas.');
-    window.open(`https://wa.me/55${tel}?text=${msg}`,'_blank');
-  }
-  alert('Loja aprovada com sucesso!');
-  carregarTudo();
+  await supabaseClient.from('lojas').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
+  if(tel) window.open(`https://wa.me/55${tel}?text=${encodeURIComponent('✅ Sua Loja foi APROVADA no EntreAqui!')}`,'_blank');
+  alert('Loja aprovada!'); carregarTudo();
 }
-async function reprovarLoja(id){
-  if(!confirm('Rejeitar loja?')) return;
-  await supabaseClient.from('lojas').update({status:'rejeitado', aprovado:false, bloqueado:false}).eq('id',id);
-  carregarTudo();
-}
-async function bloquearLoja(id){
-  if(!confirm('Bloquear loja?')) return;
-  await supabaseClient.from('lojas').update({status:'bloqueado', aprovado:false, bloqueado:true}).eq('id',id);
-  carregarTudo();
-}
+async function reprovarLoja(id){ if(confirm('Rejeitar?')){ await supabaseClient.from('lojas').update({status:'rejeitado'}).eq('id',id); carregarTudo(); } }
+async function bloquearLoja(id){ if(confirm('Bloquear?')){ await supabaseClient.from('lojas').update({status:'bloqueado', bloqueado:true}).eq('id',id); carregarTudo(); } }
 
-async function relatorio(){
+async function gerarRelatorioConsolidado(){
   const ini=document.getElementById('dataIni').value, fim=document.getElementById('dataFim').value;
   let q = supabaseClient.from('entregas').select('*').eq('status','entregue');
   if(ini) q=q.gte('entregue_em',ini+'T00:00:00');
   if(fim) q=q.lte('entregue_em',fim+'T23:59:59');
   const {data, error} = await q;
-  if(error) return document.getElementById('rel').innerHTML='Erro: '+error.message;
+  if(error) return document.getElementById('relGeral').innerHTML='Erro: '+error.message;
   
   let totalEntregas = (data||[]).length;
-  let valorTotalLojas = 0;
-  let valorTotalMotoboys = 0;
+  let totalReceberLojas = 0;
+  let totalPagarMotoboys = 0;
   
   (data||[]).forEach(e=>{
-    valorTotalLojas += Number(e.valor||0);
-    valorTotalMotoboys += Number(e.valor_motoboy||0);
+    totalReceberLojas += Number(e.valor_frete_loja||0);
+    totalPagarMotoboys += Number(e.valor_motoboy||0);
   });
+  
+  let lucroPlataforma = totalReceberLojas - totalPagarMotoboys;
 
-  document.getElementById('rel').innerHTML = `
+  document.getElementById('relGeral').innerHTML = `
     <b>Total de Entregas Concluídas:</b> ${totalEntregas}<br>
-    <b>Total a Receber das Lojas:</b> R$ ${valorTotalLojas.toFixed(2)}<br>
-    <b>Total a Repassar aos Motoboys:</b> R$ ${valorTotalMotoboys.toFixed(2)}<br>
-    <hr style="border:0;border-top:1px solid #ddd;margin:10px 0">
-    <span class="small">O admin recebe das lojas e repassa os valores correspondentes aos motoboys parceiros.</span>
+    <b>Total a Receber das Lojas:</b> R$ ${totalReceberLojas.toFixed(2)}<br>
+    <b>Total a Pagar aos Motoboys:</b> R$ ${totalPagarMotoboys.toFixed(2)}<br>
+    <hr style="border:0;border-top:1px solid #ddd;margin:8px 0">
+    <b style="color:#00a650">Lucro Bruto da Plataforma: R$ ${lucroPlataforma.toFixed(2)}</b>
   `;
 }
 
-// Garante a inserção do registro padrão de config caso não exista
-async function inicializarConfig(){
-  try {
-    const {data} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
-    if(!data){
-      await supabaseClient.from('config').insert([{id:1, chovendo:false}]);
-    }
-  } catch(e) {}
-  carregarTudo();
+async function carregarSelectsPdf(){
+  const {data: motos} = await supabaseClient.from('motoboys').select('id, nome_completo, nome, placa_moto, placa').eq('status','aprovado');
+  document.getElementById('selectMotoboyPdf').innerHTML = '<option value="">-- Escolha o Motoboy --</option>' + (motos||[]).map(m=>`<option value="${m.id}">${m.nome_completo||m.nome} (${m.placa_moto||m.placa||'N/A'})</option>`).join('');
+
+  const {data: lojas} = await supabaseClient.from('lojas').select('id, nome_fantasia, nome').eq('status','aprovado');
+  document.getElementById('selectLojaPdf').innerHTML = '<option value="">-- Escolha a Loja --</option>' + (lojas||[]).map(l=>`<option value="${l.id}">${l.nome_fantasia||l.nome}</option>`).join('');
 }
 
-inicializarConfig();
+async function baixarPdfMotoboy(){
+  const motoId = document.getElementById('selectMotoboyPdf').value;
+  if(!motoId) return alert('Selecione um motoboy');
+  
+  const {data: moto} = await supabaseClient.from('motoboys').select('*').eq('id', motoId).maybeSingle();
+  const {data: entregas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).eq('status','entregue').order('entregue_em',{ascending:false});
+  
+  let total = 0;
+  (entregas||[]).forEach(e => total += Number(e.valor_motoboy||0));
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  
+  doc.setFontSize(16); doc.text('EXTRATO DE GANHOS - ENTREAQUI', 14, 20);
+  doc.setFontSize(11);
+  doc.text(`Motoboy: ${moto.nome_completo||moto.nome}`, 14, 30);
+  doc.text(`CPF: ${moto.cpf} | Placa: ${moto.placa_moto||moto.placa||'N/A'}`, 14, 37);
+  doc.text(`Chave Pix: ${moto.chave_pix||'Não informada'}`, 14, 44);
+  
+  let y = 55;
+  doc.setFontSize(10);
+  doc.text('Data / Hora', 14, y); doc.text('Loja / Cliente', 60, y); doc.text('Valor', 170, y);
+  doc.line(14, y+2, 196, y+2);
+  
+  y += 8;
+  (entregas||[]).forEach(e => {
+    if(y > 270){ doc.addPage(); y = 20; }
+    const dataF = (e.entregue_em||'').replace('T',' ').substring(0,16);
+    doc.text(dataF, 14, y);
+    doc.text(`${e.loja_nome} -> ${e.cliente_nome}`, 60, y);
+    doc.text(`R$ ${Number(e.valor_motoboy||0).toFixed(2)}`, 170, y);
+    y += 7;
+  });
+  
+  y += 5;
+  doc.line(14, y, 196, y);
+  y += 8;
+  doc.setFontSize(12);
+  doc.text(`TOTAL A PAGAR AO MOTOBOY: R$ ${total.toFixed(2)}`, 14, y);
+  
+  doc.save(`extrato-motoboy-${moto.nome_completo||'motoboy'}.pdf`);
+}
+
+async function baixarPdfLoja(){
+  const lojaId = document.getElementById('selectLojaPdf').value;
+  if(!lojaId) return alert('Selecione uma loja');
+  
+  const {data: loja} = await supabaseClient.from('lojas').select('*').eq('id', lojaId).maybeSingle();
+  const {data: entregas} = await supabaseClient.from('entregas').select('*').eq('loja_id', lojaId).eq('status','entregue').order('entregue_em',{ascending:false});
+  
+  let total = 0;
+  (entregas||[]).forEach(e => total += Number(e.valor_frete_loja||0));
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  
+  doc.setFontSize(16); doc.text('EXTRATO DE COBRANÇA - ENTREAQUI', 14, 20);
+  doc.setFontSize(11);
+  doc.text(`Loja: ${loja.nome_fantasia||loja.nome}`, 14, 30);
+  doc.text(`CNPJ: ${loja.cnpj}`, 14, 37);
+  
+  let y = 48;
+  doc.setFontSize(10);
+  doc.text('Data / Hora', 14, y); doc.text('Cliente / Motoboy', 60, y); doc.text('Frete Loja', 170, y);
+  doc.line(14, y+2, 196, y+2);
+  
+  y += 8;
+  (entregas||[]).forEach(e => {
+    if(y > 270){ doc.addPage(); y = 20; }
+    const dataF = (e.entregue_em||'').replace('T',' ').substring(0,16);
+    doc.text(dataF, 14, y);
+    doc.text(`${e.cliente_nome} (${e.motoboy_nome||'N/A'})`, 60, y);
+    doc.text(`R$ ${Number(e.valor_frete_loja||0).toFixed(2)}`, 170, y);
+    y += 7;
+  });
+  
+  y += 5;
+  doc.line(14, y, 196, y);
+  y += 8;
+  doc.setFontSize(12);
+  doc.text(`TOTAL A REPASSAR À PLATAFORMA: R$ ${total.toFixed(2)}`, 14, y);
+  
+  doc.save(`cobranca-loja-${loja.nome_fantasia||'loja'}.pdf`);
+}
+
+carregarTudo();
 </script>
-</body>
-</html>
+</body></html>
