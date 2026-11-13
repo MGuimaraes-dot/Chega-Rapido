@@ -51,9 +51,9 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
 <h3>🟡 Motoboys Pendentes</h3>
 <div id="pendentesMoto"><p class="small">Carregando...</p></div>
 <h3>✅ Motoboys Aprovados</h3>
-<div id="aprovadosMoto"></div>
+<div id="aprovadosMoto"><p class="small">Carregando...</p></div>
 <h3>🔴 Bloqueados / Rejeitados</h3>
-<div id="bloqueadosMoto"></div>
+<div id="bloqueadosMoto"><p class="small">Carregando...</p></div>
 <button class="btn btn-gray" onclick="carregarTudo()">🔄 Atualizar Dados</button>
 </div>
 
@@ -62,7 +62,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
 <h3>🟡 Lojas Pendentes - para aprovar</h3>
 <div id="pendentesLoja"><p class="small">Carregando...</p></div>
 <h3>🏪 Lojas Cadastradas e Aprovadas</h3>
-<div id="aprovadasLoja"></div>
+<div id="aprovadasLoja"><p class="small">Carregando...</p></div>
 <button class="btn btn-gray" onclick="carregarTudo()">🔄 Atualizar Lojas</button>
 </div>
 
@@ -71,7 +71,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
   <h3 style="margin-top:0">🗺️ Radar ao Vivo da Frota Online</h3>
   <p class="small">Acompanhe em tempo real onde estão os motoboys disponíveis na cidade.</p>
   <div id="mapRadar"></div>
-  <button class="btn btn-dark" onclick="atualizarRadar()">🔄 Atualizar Posições Agora</button>
+  <button class="btn btn-dark" onclick="atualizarRadar()" style="margin-top:10px">🔄 Atualizar Posições Agora</button>
 </div>
 
 <!-- ABA RELATORIOS / FINANCEIRO / BAIXA DE CICLO -->
@@ -81,7 +81,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
   <div><label>Data Início</label><input type="date" id="dataIni"></div>
   <div><label>Data Fim</label><input type="date" id="dataFim"></div>
 </div>
-<button class="btn btn-green" onclick="gerarRelatorioConsolidado()">Gerar Relatório Completo</button>
+<button class="btn btn-green" onclick="gerarRelatorioConsolidado()" style="margin-top:10px">Gerar Relatório Completo</button>
 <div id="relGeral" style="margin-top:14px;font-size:13px"></div>
 
 <hr style="border:0;border-top:1px solid #ddd;margin:20px 0">
@@ -131,7 +131,10 @@ async function carregarConfigDinamica(){
     bPico.innerText = pico ? '🔥 ATIVO (+R$ 2,00)' : '⚪ NORMAL';
     bPico.style.background = pico ? '#ff5a00' : '#eee';
     bPico.style.color = pico ? '#fff' : '#000';
-  } catch(e) {}
+  } catch(e) {
+    document.getElementById('btnChuva').innerText = '☀️ NÃO';
+    document.getElementById('btnPico').innerText = '⚪ NORMAL';
+  }
 }
 
 async function alternarChuva(){
@@ -195,22 +198,20 @@ async function carregarTudo(){
       <button class="btn btn-green" onclick="aprovarMoto('${m.id}','${(m.telefone||m.whatsapp||'').replace(/\D/g,'')}')">✅ Aprovar Motoboy</button>
       <button class="btn btn-red" onclick="reprovarMoto('${m.id}')">❌ Reprovar</button>
       </div>`).join('')||'<p class="small">Nenhum motoboy pendente</p>';
-  } catch(err) {}
+  } catch(err) {
+    document.getElementById('pendentesMoto').innerHTML='<p class="small">Nenhum motoboy pendente</p>';
+  }
 
-  // MOTOBOYS APROVADOS (com média de estrelas)
+  // MOTOBOYS APROVADOS
   try {
     const {data: aprM} = await supabaseClient.from('motoboys').select('*').eq('status','aprovado').order('created_at',{ascending:false});
-    const {data: avaliacoes} = await supabaseClient.from('entregas').select('motoboy_id, avaliacao_motoboy').not('avaliacao_motoboy', 'is', null);
-
-    document.getElementById('aprovadosMoto').innerHTML=(aprM||[]).map(m=>{
-      const notas = (avaliacoes||[]).filter(a => a.motoboy_id === m.id).map(a => a.avaliacao_motoboy);
-      const media = notas.length > 0 ? (notas.reduce((a,b)=>a+b,0)/notas.length).toFixed(1) : 'Sem nota';
-      return `
-      <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.online?'🟢 ONLINE':'⚪ OFFLINE'}</span> | ⭐ <b>${media}</b><br>
+    document.getElementById('aprovadosMoto').innerHTML=(aprM||[]).map(m=>`
+      <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.online?'🟢 ONLINE':'⚪ OFFLINE'}</span><br>
       <span class="small">CPF: ${m.cpf} | Pix: ${m.chave_pix||'N/A'} | Placa: ${m.placa_moto||m.placa||'N/A'}</span><br>
-      <button class="btn btn-red" onclick="bloquearMoto('${m.id}')">🔴 Bloquear Motoboy</button></div>`;
-    }).join('')||'<p class="small">Nenhum motoboy aprovado</p>';
-  } catch(err) {}
+      <button class="btn btn-red" onclick="bloquearMoto('${m.id}')">🔴 Bloquear Motoboy</button></div>`).join('')||'<p class="small">Nenhum motoboy aprovado</p>';
+  } catch(err) {
+    document.getElementById('aprovadosMoto').innerHTML='<p class="small">Nenhum motoboy aprovado</p>';
+  }
 
   // MOTOBOYS BLOQUEADOS
   try {
@@ -219,7 +220,9 @@ async function carregarTudo(){
       <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.status}</span><br>
       <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''}</span><br>
       <button class="btn btn-green" onclick="desbloquearMoto('${m.id}')">✅ Desbloquear</button></div>`).join('')||'<p class="small">Nenhum bloqueado</p>';
-  } catch(err) {}
+  } catch(err) {
+    document.getElementById('bloqueadosMoto').innerHTML='<p class="small">Nenhum bloqueado</p>';
+  }
 
   // LOJAS PENDENTES
   try {
@@ -232,7 +235,9 @@ async function carregarTudo(){
       <button class="btn btn-green" onclick="aprovarLoja('${l.id}','${(l.whatsapp||'').replace(/\D/g,'')}')">✅ Aprovar Loja</button>
       <button class="btn btn-red" onclick="reprovarLoja('${l.id}')">❌ Rejeitar</button>
       </div>`).join('')||'<p class="small">Nenhuma loja pendente</p>';
-  } catch(err) {}
+  } catch(err) {
+    document.getElementById('pendentesLoja').innerHTML='<p class="small">Nenhuma loja pendente</p>';
+  }
 
   // LOJAS APROVADAS
   try {
@@ -241,7 +246,9 @@ async function carregarTudo(){
       <div class="item"><b>${l.nome_fantasia||l.nome||''}</b> - <span class="badge">APROVADA</span><br>
       <span class="small">CNPJ: ${l.cnpj} | Retirada: ${l.endereco_retirada||l.endereco||''} | Whats: ${l.whatsapp||''}</span><br>
       <button class="btn btn-red" onclick="bloquearLoja('${l.id}')">🔴 Bloquear Loja</button></div>`).join('')||'<p class="small">Nenhuma loja aprovada</p>';
-  } catch(err) {}
+  } catch(err) {
+    document.getElementById('aprovadasLoja').innerHTML='<p class="small">Nenhuma loja aprovada</p>';
+  }
 }
 
 async function aprovarMoto(id, tel){
@@ -283,11 +290,9 @@ async function gerarRelatorioConsolidado(){
   if(ini) qEnt = qEnt.gte('created_at', ini + 'T00:00:00');
   if(fim) qEnt = qEnt.lte('created_at', fim + 'T23:59:59');
 
-  const {data: entregas, error} = await qEnt;
+  const {data: entregas} = await qEnt;
   const {data: motoboys} = await supabaseClient.from('motoboys').select('*');
   const {data: lojas} = await supabaseClient.from('lojas').select('*');
-
-  if(error) return document.getElementById('relGeral').innerHTML = 'Erro: ' + error.message;
 
   const concluidas = (entregas || []).filter(e => e.status === 'entregue');
   
@@ -299,7 +304,6 @@ async function gerarRelatorioConsolidado(){
   });
   let lucroPlataforma = totalReceberLojas - totalPagarMotoboys;
 
-  // Estatísticas por Motoboy
   let htmlMotoboys = `<h4>🛵 Desempenho & Acerto por Motoboy</h4>
     <table class="tabela-rel">
       <tr><th>Motoboy</th><th>Concl.</th><th>Aceitas</th><th>Recus.</th><th>Tx Aceit.</th><th>A Pagar (Aberto)</th><th>Ação</th></tr>`;
@@ -331,7 +335,6 @@ async function gerarRelatorioConsolidado(){
   });
   htmlMotoboys += `</table>`;
 
-  // Estatísticas por Loja
   let htmlLojas = `<h4 style="margin-top:20px">🏪 Faturamento & Acerto por Loja</h4>
     <table class="tabela-rel">
       <tr><th>Loja</th><th>Entregas</th><th>A Receber (Aberto)</th><th>Ação</th></tr>`;
