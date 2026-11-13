@@ -4,40 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EntreAqui - Motoboy</title>
-    <!-- Importando o cliente do Supabase via CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
         .header-container { background: #28a745; color: white; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: relative; }
         .btn-config { background: none; border: 0; color: #fff; font-size: 24px; cursor: pointer; }
         .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; }
-        .btn-success { background-color: #28a745; }
-        .btn-danger { background-color: #dc3545; }
-        .btn-gray { background-color: #eee; color: #333; }
+        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; margin-top: 6px; }
+        .btn-success { background-color: #28a745; width: 100%; }
+        .btn-danger { background-color: #dc3545; width: 100%; }
+        .btn-orange { background-color: #ff5a00; width: 100%; }
+        .btn-gray { background-color: #eee; color: #333; width: 100%; }
+        .btn-online-toggle { width: 100%; padding: 12px; font-size: 15px; border-radius: 8px; border: 0; font-weight: 900; cursor: pointer; margin-bottom: 15px; }
         .btn:hover { opacity: 0.9; }
-        #sinal-gps { display: none; background: #eef2f5; color: #007bff; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; margin-bottom: 15px; border: 1px solid #b8daff; }
-        .timer { font-size: 18px; color: #dc3545; font-weight: bold; margin: 10px 0; }
+        #sinal-gps { display: none; background: #eef2f5; color: #007bff; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; margin-bottom: 15px; border: 1px solid #b8daff; font-size: 13px; }
+        .timer { font-size: 16px; color: #dc3545; font-weight: bold; margin: 10px 0; }
         .config-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
         .config-content { background: #fff; width: 90%; max-width: 440px; border-radius: 16px; padding: 20px; max-height: 85vh; overflow-y: auto; }
-        label { font-size: 13px; font-weight: 700; display: block; margin: 12px 0 4px; }
-        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 11px; font-size: 14px; box-sizing: border-box; }
+        label { font-size: 13px; font-weight: 700; display: block; margin: 10px 0 4px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
         input.codigo { letter-spacing: 4px; font-weight: 900; text-align: center; }
-        .item { border: 1px solid #eee; border-radius: 12px; padding: 10px; margin-top: 8px; background: #fafafa; font-size: 13px; }
+        .item { border: 1px solid #eee; border-radius: 10px; padding: 12px; margin-top: 10px; background: #fafafa; font-size: 13px; }
+        .box-cancelar { display:none; background:#fff5f5; border:1px solid #feb2b2; padding:10px; border-radius:8px; margin-top:8px; }
     </style>
 </head>
 <body>
 
     <div class="header-container">
         <div>
-            <h2 style="margin: 0;">ENTREAQUI - MOTOBOY</h2>
-            <p id="nome-motoboy" style="margin: 5px 0 0 0; font-size: 14px;">Carregando dados...</p>
+            <h2 style="margin: 0; font-size: 18px;">ENTREAQUI - MOTOBOY</h2>
+            <p id="nome-motoboy" style="margin: 5px 0 0 0; font-size: 13px;">Carregando dados...</p>
         </div>
-        <!-- Botão de Configuração (Engrenagem) abrindo o modal completo -->
         <button class="btn-config" onclick="abrirConfig(true)" title="Configurações & Extrato">⚙️</button>
     </div>
 
-    <!-- MODAL DE CONFIGURAÇÕES, EXTRATO E SENHA DO MOTOBOY -->
+    <!-- MODAL DE CONFIGURAÇÕES, EXTRATO E FILTRO POR DATA -->
     <div id="modalConfig" class="config-modal">
         <div class="config-content">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -47,23 +48,32 @@
             
             <label>Trocar CPF de Cadastro (Sessão)</label>
             <input id="inputNovoCpf" type="text" placeholder="Digite o CPF">
-            <button class="btn btn-success" onclick="salvarNovoCpf()" style="margin-top:8px; width:100%;">Alternar Motoboy</button>
+            <button class="btn btn-success" onclick="salvarNovoCpf()">Alternar Motoboy</button>
 
-            <label style="margin-top:16px">Nova Senha</label>
+            <label style="margin-top:12px">Nova Senha</label>
             <input id="novaSenhaMotoboy" type="password" placeholder="Nova senha">
-            <button class="btn btn-success" onclick="salvarSenhaMotoboy()" style="margin-top:8px; width:100%;">Salvar Senha</button>
+            <button class="btn btn-success" onclick="salvarSenhaMotoboy()">Salvar Senha</button>
             
-            <h3 style="font-size:15px;margin-top:20px">Extrato de Ganhos</h3>
+            <h3 style="font-size:15px;margin-top:20px">📅 Filtrar Extrato por Data</h3>
+            <div style="display:flex; gap:8px;">
+                <div style="flex:1"><label>De:</label><input type="date" id="filtroDataInicio" onchange="carregarExtratoMotoboy()"></div>
+                <div style="flex:1"><label>Até:</label><input type="date" id="filtroDataFim" onchange="carregarExtratoMotoboy()"></div>
+            </div>
+
+            <h3 style="font-size:15px;margin-top:15px">Extrato de Ganhos</h3>
             <div id="extratoMotoboy" style="font-size:13px;color:#333">Calculando ganhos...</div>
             
             <h3 style="font-size:14px;margin-top:16px">📜 Histórico de Entregas</h3>
             <div id="historicoMotoboy" style="max-height:200px;overflow-y:auto"></div>
             
-            <button class="btn btn-gray" onclick="sairDaConta()" style="margin-top:20px; width:100%;">Sair / Limpar Sessão</button>
+            <button class="btn btn-gray" onclick="sairDaConta()" style="margin-top:20px">Sair / Limpar Sessão</button>
         </div>
     </div>
 
-    <!-- SINAL DE GPS CONDICIONAL (Só aparece se houver entrega ativa ou oferta) -->
+    <!-- BOTÃO ONLINE / OFFLINE -->
+    <button id="btnOnlineToggle" class="btn-online-toggle" onclick="alternarOnline()">🔴 Você está OFFLINE</button>
+
+    <!-- SINAL DE GPS CONDICIONAL -->
     <div id="sinal-gps">
         📍 GPS Ativo: Rastreando rota da entrega...
     </div>
@@ -79,15 +89,17 @@
             ⏳ Tempo para aceitar: <span id="contador-segundos">20</span> segundos
         </div>
 
-        <button class="btn btn-success" onclick="aceitarEntregaAtual()">Aceitar Entrega</button>
-        <button class="btn btn-danger" onclick="recusarEntregaAtual()" style="margin-left: 10px;">Recusar</button>
+        <div style="display:flex; gap:10px">
+            <button class="btn btn-success" style="margin:0" onclick="aceitarEntregaAtual()">Aceitar</button>
+            <button class="btn btn-danger" style="margin:0" onclick="recusarEntregaAtual()">Recusar</button>
+        </div>
     </div>
 
-    <!-- SEÇÃO 2: MINHAS ENTREGAS EM ANDAMENTO (Estritamente isoladas por motoboy_id) -->
+    <!-- SEÇÃO 2: MINHAS ENTREGAS EM ANDAMENTO -->
     <div class="card">
-        <h3>📦 Minhas Entregas em Andamento</h3>
+        <h3 style="margin-top:0">📦 Minhas Entregas em Andamento</h3>
         <div id="lista-entregas-andamento">
-            <p style="color: #777;">Nenhuma entrega em andamento no momento.</p>
+            <p style="color: #777; font-size: 13px;">Nenhuma entrega em andamento no momento.</p>
         </div>
     </div>
 
@@ -100,19 +112,62 @@
         let motoboyLogadoId = null;
         let entregaOfertaId = null;
         let timerInterval = null;
+        let onlineAtual = false;
+        let watchId = null;
 
         window.onload = async () => {
             await carregarDadosMotoboy();
             if (motoboyLogadoId) {
+                // Puxa status online salvo ou define offline por segurança
+                onlineAtual = localStorage.getItem('motoboy_online') === 'true';
+                atualizarBotaoOnlineUI();
                 verificarPainelMotoboy();
 
                 db.channel('public:entregas')
                   .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas' }, () => {
-                      verificarPainelMotoboy();
+                      if(onlineAtual) verificarPainelMotoboy();
                   })
                   .subscribe();
             }
         };
+
+        function atualizarBotaoOnlineUI() {
+            const btn = document.getElementById('btnOnlineToggle');
+            if (onlineAtual) {
+                btn.innerText = "🟢 Você está ONLINE (Pronto para entregas)";
+                btn.style.backgroundColor = "#28a745";
+                btn.style.color = "#white";
+            } else {
+                btn.innerText = "🔴 Você está OFFLINE";
+                btn.style.backgroundColor = "#dc3545";
+                btn.style.color = "#white";
+            }
+        }
+
+        async function alternarOnline() {
+            onlineAtual = !onlineAtual;
+            localStorage.setItem('motoboy_online', onlineAtual);
+            atualizarBotaoOnlineUI();
+
+            if (motoboyLogadoId) {
+                await db.from('motoboys').update({ online: onlineAtual }).eq('id', motoboyLogadoId);
+            }
+
+            if (onlineAtual) {
+                if (navigator.geolocation) {
+                    watchId = navigator.geolocation.watchPosition(async pos => {
+                        if (motoboyLogadoId && onlineAtual) {
+                            await db.from('motoboys').update({ lat: pos.coords.latitude, lng: pos.coords.longitude }).eq('id', motoboyLogadoId);
+                        }
+                    }, null, { enableHighAccuracy: true });
+                }
+                verificarPainelMotoboy();
+            } else {
+                if (watchId) navigator.geolocation.clearWatch(watchId);
+                document.getElementById('card-oferta-entrega').style.display = 'none';
+                document.getElementById('sinal-gps').style.display = 'none';
+            }
+        }
 
         window.abrirConfig = function(abrir) {
             document.getElementById('modalConfig').style.display = abrir ? 'flex' : 'none';
@@ -145,8 +200,23 @@
 
         async function carregarExtratoMotoboy() {
             if (!motoboyLogadoId) return;
-            const {data: ent} = await db.from('entregas').select('*').eq('motoboy_id', motoboyLogadoId).order('created_at', {ascending: false});
-            const concluidas = (ent || []).filter(e => e.status === 'entregue');
+            const dataInicio = document.getElementById('filtroDataInicio').value;
+            const dataFim = document.getElementById('filtroDataFim').value;
+
+            let query = db.from('entregas').select('*').eq('motoboy_id', motoboyLogadoId).order('created_at', {ascending: false});
+            const {data: ent} = await query;
+            
+            let concluidas = (ent || []).filter(e => e.status === 'entregue');
+
+            // Aplicação do Filtro por Data igual ao ADM
+            if (dataInicio || dataFim) {
+                concluidas = concluidas.filter(e => {
+                    const dataEntrega = (e.entregue_em || e.created_at || '').substring(0, 10);
+                    if (dataInicio && dataEntrega < dataInicio) return false;
+                    if (dataFim && dataEntrega > dataFim) return false;
+                    return true;
+                });
+            }
             
             let totalGanhos = 0;
             let aReceber = 0;
@@ -157,24 +227,24 @@
             });
 
             document.getElementById('extratoMotoboy').innerHTML = `
-                • Total de Entregas Concluídas: <b>${concluidas.length}</b><br>
-                • Ganhos Acumulados: <b>R$ ${totalGanhos.toFixed(2)}</b><br>
+                • Entregas no Período: <b>${concluidas.length}</b><br>
+                • Ganhos no Período: <b>R$ ${totalGanhos.toFixed(2)}</b><br>
                 • <span style="color:#00a650">Valor A Receber (Aberto): <b>R$ ${aReceber.toFixed(2)}</b></span>
             `;
 
-            document.getElementById('historicoMotoboy').innerHTML = (ent || []).map(e => `
+            document.getElementById('historicoMotoboy').innerHTML = concluidas.map(e => `
                 <div class="item">
-                    <b>${e.loja_nome || 'Loja'}</b> - <span style="color:${e.status==='entregue'?'green':'orange'}">${e.status.toUpperCase()}</span><br>
-                    <small>Ganho: R$ ${Number(e.valor_motoboy||0).toFixed(2)} | Pago: ${e.pago_motoboy ? 'SIM' : 'NÃO'}</small>
+                    <b>${e.loja_nome || 'Loja'}</b> - <span style="color:green">ENTREGUE</span><br>
+                    <small>Ganho: R$ ${Number(e.valor_motoboy||0).toFixed(2)} | Pago: ${e.pago_motoboy ? 'SIM' : 'NÃO'}<br>Data: ${(e.entregue_em||'').replace('T',' ').substring(0,16)}</small>
                 </div>
-            `).join('') || '<p style="color:#666;font-size:13px">Nenhum histórico encontrado.</p>';
+            `).join('') || '<p style="color:#666;font-size:13px">Nenhum histórico encontrado para este período.</p>';
         }
 
         async function carregarDadosMotoboy() {
             try {
                 const { data, error } = await db
                     .from('motoboys')
-                    .select('id, nome_completo, nome, cpf, placa, placa_moto')
+                    .select('id, nome_completo, nome, cpf, placa, placa_moto, online')
                     .eq('cpf', cpfMotoboyLogado)
                     .limit(1);
 
@@ -193,7 +263,7 @@
         }
 
         async function verificarPainelMotoboy() {
-            if (!motoboyLogadoId) return;
+            if (!motoboyLogadoId || !onlineAtual) return;
 
             const cardOferta = document.getElementById('card-oferta-entrega');
             const sinalGps = document.getElementById('sinal-gps');
@@ -224,7 +294,7 @@
                     clearInterval(timerInterval);
                 }
 
-                // 2. Busca entregas em andamento estritamente vinculadas a este motoboy (Isolamento total)
+                // 2. Busca entregas em andamento deste motoboy
                 const { data: andamentos } = await db
                     .from('entregas')
                     .select('*')
@@ -237,23 +307,31 @@
                     
                     andamentos.forEach((ent, index) => {
                         htmlAndamento += `
-                            <div style="border-left: 4px solid #28a745; padding-left: 10px; margin-bottom: 15px;">
-                                <p style="margin: 4px 0;"><strong>#${index + 1} - ${ent.cliente_nome || 'Cliente'}</strong></p>
+                            <div class="item" style="border-left: 4px solid #28a745;">
+                                <p style="margin: 4px 0;"><strong>#${index + 1} - ${ent.cliente_nome || 'Cliente'}</strong> (${ent.loja_nome || 'Loja'})</p>
                                 <p style="margin: 4px 0; font-size: 13px;">📍 Retirar em: ${ent.endereco_retirada || '-'}</p>
                                 <p style="margin: 4px 0; font-size: 13px;">🎯 Entregar em: ${ent.endereco || '-'}</p>
                                 
-                                <label style="font-size: 12px; font-weight: 700; display: block; margin-top: 8px;">Digite o PIN de 4 dígitos do Cliente:</label>
-                                <input class="codigo" id="pin-${ent.id}" placeholder="0000" maxlength="4" inputmode="numeric" style="width: 100%; padding: 8px; text-align: center; font-weight: bold; letter-spacing: 3px; margin-bottom: 8px;">
+                                <label style="font-size: 12px; font-weight: 700; display: block; margin-top: 8px;">PIN de 4 dígitos do Cliente:</label>
+                                <input class="codigo" id="pin-${ent.id}" placeholder="0000" maxlength="4" inputmode="numeric">
                                 
-                                <button class="btn btn-success" style="width: 100%;" onclick="finalizarEntrega('${ent.id}')">✅ Confirmar Entrega</button>
+                                <button class="btn btn-success" onclick="finalizarEntrega('${ent.id}')">✅ Confirmar Entrega</button>
+                                
+                                <!-- Caixa expandida de Cancelamento com Motivo -->
+                                <button class="btn btn-danger" style="margin-top:6px; background:#e53e3e; font-size:12px; padding:6px" onclick="toggleBoxCancelar('${ent.id}')">❌ Cancelar / Devolver Corrida</button>
+                                
+                                <div id="box-cancelar-${ent.id}" class="box-cancelar">
+                                    <label style="font-size:11px; margin-top:0">Motivo do cancelamento:</label>
+                                    <input id="motivo-${ent.id}" placeholder="Ex: Cliente ausente / Problema moto" style="font-size:12px; padding:6px">
+                                    <button class="btn btn-danger" style="margin-top:6px; font-size:12px; padding:6px" onclick="confirmarCancelamentoEntrega('${ent.id}')">Confirmar e Devolver para Fila</button>
+                                </div>
                             </div>
-                            <hr>
                         `;
                     });
                     containerAndamento.innerHTML = htmlAndamento;
                 } else {
-                    containerAndamento.innerHTML = `<p style="color: #777;">Nenhuma entrega em andamento no momento.</p>`;
-                    if (!ofertas || ofertas.length === 0) {
+                    containerAndamento.innerHTML = `<p style="color: #777; font-size: 13px;">Nenhuma entrega em andamento no momento.</p>`;
+                    if (!ofertas || ofertas.length === 0 && !onlineAtual) {
                         sinalGps.style.display = 'none';
                     }
                 }
@@ -274,8 +352,7 @@
                 if (segundos <= 0) {
                     clearInterval(timerInterval);
                     document.getElementById('card-oferta-entrega').style.display = 'none';
-                    entregaOfertaId = null;
-                    verificarPainelMotoboy();
+                    recusarEntregaAtual();
                 }
             }, 1000);
         }
@@ -311,7 +388,7 @@
                 .eq('id', entregaOfertaId)
                 .single();
 
-            let listaRecusados = entrega.recusados_por || [];
+            let listaRecusados = entrega?.recusados_por || [];
             if (!listaRecusados.includes(motoboyLogadoId)) {
                 listaRecusados.push(motoboyLogadoId);
             }
@@ -325,7 +402,42 @@
                 })
                 .eq('id', entregaOfertaId);
 
+            document.getElementById('card-oferta-entrega').style.display = 'none';
+            entregaOfertaId = null;
             verificarPainelMotoboy();
+        }
+
+        function toggleBoxCancelar(id) {
+            const box = document.getElementById('box-cancelar-' + id);
+            box.style.display = box.style.display === 'block' ? 'none' : 'block';
+        }
+
+        async function confirmarCancelamentoEntrega(idEntrega) {
+            const motivoInput = document.getElementById('motivo-' + idEntrega);
+            const motivo = motivoInput ? motivoInput.value.trim() : '';
+
+            if (!motivo) {
+                return alert('Por favor, informe o motivo do cancelamento.');
+            }
+
+            // Devolve a entrega para o status pendente e limpa o motoboy_id para voltar à fila geral
+            const { error } = await db
+                .from('entregas')
+                .update({ 
+                    status: 'pendente', 
+                    motoboy_id: null,
+                    motoboy_atual_id: null,
+                    observacao_cancelamento: motivo
+                })
+                .eq('id', idEntrega)
+                .eq('motoboy_id', motoboyLogadoId);
+
+            if (!error) {
+                alert("⚠️ Entrega devolvida para a fila geral.");
+                verificarPainelMotoboy();
+            } else {
+                alert("Erro ao cancelar: " + error.message);
+            }
         }
 
         async function finalizarEntrega(idEntrega) {
