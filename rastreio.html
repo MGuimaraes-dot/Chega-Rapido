@@ -1,128 +1,173 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EntreAqui - Rastreio</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
-        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .map-container { height: 230px; width: 100%; border-radius: 8px; margin-top: 15px; border: 1px solid #ccc; z-index: 1; }
-    </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EntreAqui - Rastreio ao Vivo</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Leaflet CSS & JS para o Mapa ao Vivo -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *{box-sizing:border-box;font-family:system-ui,Arial}
+  body{margin:0;background:#fff5ef;padding:15px}
+  header{background:#ff5a00;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:20px;border-radius:12px;margin-bottom:16px}
+  .card{max-width:480px;margin:0 auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08);text-align:center}
+  .status-box{background:#fff3e0;color:#e65100;padding:12px;border-radius:12px;font-weight:800;font-size:16px;margin:16px 0}
+  .codigo-box{background:#f0fdf4;border:2px dashed #00a650;border-radius:12px;padding:16px;margin-top:20px}
+  .codigo-num{font-size:32px;font-weight:900;color:#00a650;letter-spacing:4px;margin-top:5px}
+  .small{font-size:13px;color:#666;line-height:1.5}
+  /* Estilo do Mapa de Rastreio */
+  #mapaRastreio {
+    width: 100%;
+    height: 220px;
+    border-radius: 12px;
+    margin-top: 16px;
+    display: none;
+    border: 2px solid #ddd;
+    z-index: 1;
+  }
+</style>
 </head>
 <body>
 
-    <div style="background: #ff5a00; color: white; padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 18px; margin-bottom: 20px;">
-        📦 ENTREAQUI - RASTREIO AO VIVO
-    </div>
+<header>📦 ENTREAQUI - RASTREIO AO VIVO</header>
 
-    <div class="card" id="card-rastreio">
-        <h3 id="loja-nome" style="margin-top:0; text-align:center; font-size:18px;">Carregando...</h3>
-        <p><strong>Cliente:</strong> <span id="cliente-nome">-</span></p>
-        <p><strong>Endereço:</strong> <span id="cliente-endereco">-</span></p>
+<div class="card">
+  <h2 id="nomeLojaRastreio" style="margin:0;color:#333">Carregando...</h2>
+  <p class="small" id="detalhesPedido">Buscando informações do seu pedido...</p>
+
+  <div id="statusBox" class="status-box">STATUS: CARREGANDO...</div>
+
+  <div class="codigo-box">
+    <div style="font-size:12px;font-weight:700;color:#333">🔑 SEU PIN DE CONFIRMAÇÃO</div>
+    <div id="pinCliente" class="codigo-num">----</div>
+    <div class="small" style="margin-top:8px">Informe este código ao entregador <b>somente ao receber</b> o pedido.</div>
+  </div>
+
+  <!-- MAPA QUE APARECE ABAIXO QUANDO O MOTOBOY ESTIVER EM ROTA -->
+  <div id="mapaRastreio"></div>
+</div>
+
+<script>
+  const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const entregaId = urlParams.get('id');
+
+  let mapCliente = null;
+  let marcadorMotoboy = null;
+
+  async function carregarRastreio() {
+    if(!entregaId) {
+      document.getElementById('nomeLojaRastreio').innerText = "Erro";
+      document.getElementById('detalhesPedido').innerText = "Link de rastreio inválido.";
+      return;
+    }
+
+    try {
+      const { data: entrega, error } = await db
+        .from('entregas')
+        .select('*')
+        .eq('id', entregaId)
+        .maybeSingle();
+
+      if(error || !entrega) {
+        document.getElementById('nomeLojaRastreio').innerText = "Pedido não encontrado";
+        return;
+      }
+
+      document.getElementById('nomeLojaRastreio').innerText = entrega.loja_nome || "Loja Parceira";
+      document.getElementById('detalhesPedido').innerHTML = `Cliente: <b>${entrega.cliente_nome}</b><br>Endereço: ${entrega.endereco}`;
+      document.getElementById('pinCliente').innerText = entrega.codigo_entrega || "----";
+
+      const box = document.getElementById('statusBox');
+      const codigoBox = document.querySelector('.codigo-box');
+      const divMapa = document.getElementById('mapaRastreio');
+
+      if(entrega.status === 'cancelado') {
+        box.innerText = "❌ ESTE PEDIDO FOI CANCELADO";
+        box.style.background = "#fee2e2";
+        box.style.color = "#991b1b";
+        codigoBox.style.display = "none";
+        divMapa.style.display = "none";
+        return;
+      }
+
+      if(entrega.status === 'entregue') {
+        box.innerText = "✅ PEDIDO JÁ ENTREGUE";
+        box.style.background = "#f0fdf4";
+        box.style.color = "#166534";
+        codigoBox.style.display = "none";
+        divMapa.style.display = "none";
+        return;
+      }
+
+      codigoBox.style.display = "block";
+      if(entrega.status === 'agendado') {
+        box.innerText = "⏰ PEDIDO AGENDADO";
+        box.style.background = "#fff3e0";
+        box.style.color = "#e65100";
+        divMapa.style.display = "none";
+      } else if(['aceita', 'em_andamento', 'retirada'].includes(entrega.status)) {
+        box.innerText = "🚀 PEDIDO A CAMINHO DA SUA CASA!";
+        box.style.background = "#e0f2fe";
+        box.style.color = "#0369a1";
         
-        <div style="background: #eef2f5; padding: 12px; border-radius: 8px; text-align: center; margin-top: 15px; border: 1px solid #b8daff;">
-            🔑 <strong>PIN DE CONFIRMAÇÃO:</strong> <span id="pin-entrega" style="font-size:20px; color:#28a745; font-weight:900;">----</span>
-        </div>
+        // Exibe e atualiza o mapa se o motoboy estiver a caminho
+        divMapa.style.display = "block";
+        atualizarMapaMotoboy(entrega.motoboy_id);
 
-        <!-- Mini Mapa igualzinho ao do painel do motoboy -->
-        <div id="map-rastreio" class="map-container"></div>
-    </div>
+      } else {
+        box.innerText = "📦 PENDENTE (Aguardando Motoboy)";
+        box.style.background = "#fff3e0";
+        box.style.color = "#e65100";
+        divMapa.style.display = "none";
+      }
 
-    <script>
-        const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
-        const SUPABASE_ANON_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
-        const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } catch(err) {
+      console.error("Erro ao carregar rastreio:", err);
+    }
+  }
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const entregaId = urlParams.get('id');
+  async function atualizarMapaMotoboy(motoboyId) {
+    if(!motoboyId) return;
 
-        let map = null;
-        let motoMarker = null;
+    // Busca a posição atual do motoboy na tabela de motoboys
+    const { data: motoboy } = await db
+      .from('motoboys')
+      .select('lat, lng, nome_completo, nome')
+      .eq('id', motoboyId)
+      .maybeSingle();
 
-        window.onload = async () => {
-            if (!entregaId) {
-                document.getElementById('card-rastreio').innerHTML = '<p style="text-align:center; color:red;">ID da entrega não informado na URL.</p>';
-                return;
-            }
+    if(motoboy && motoboy.lat && motoboy.lng) {
+      if(!mapCliente) {
+        mapCliente = L.map('mapaRastreio', { zoomControl: false }).setView([motoboy.lat, motoboy.lng], 16);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapCliente);
+      }
+      setTimeout(() => mapCliente.invalidateSize(), 200);
 
-            await carregarDadosRastreio();
+      // Ícone limpo padronizado com a moto 🏍️
+      const iconeMoto = L.divIcon({
+        className: 'custom-moto-icon',
+        html: '<div style="background:#28a745; color:#fff; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; box-shadow:0 4px 10px rgba(0,0,0,0.4); border:2px solid #fff;">🏍️</div>',
+        iconSize: [38, 38],
+        iconAnchor: [19, 19]
+      });
 
-            // Ouve alterações na entrega ou na tabela de motoboys para atualizar o mapa em tempo real
-            db.channel('public:rastreio_vivo')
-              .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas', filter: `id=eq.${entregaId}` }, () => {
-                  carregarDadosRastreio();
-              })
-              .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'motoboys' }, () => {
-                  carregarDadosRastreio();
-              })
-              .subscribe();
-        };
+      if(!marcadorMotoboy) {
+        marcadorMotoboy = L.marker([motoboy.lat, motoboy.lng], {icon: iconeMoto}).addTo(mapCliente);
+      } else {
+        marcadorMotoboy.setLatLng([motoboy.lat, motoboy.lng]);
+      }
 
-        async function carregarDadosRastreio() {
-            const { data: entrega, error } = await db
-                .from('entregas')
-                .select('*')
-                .eq('id', entregaId)
-                .single();
+      mapCliente.panTo([motoboy.lat, motoboy.lng]);
+    }
+  }
 
-            if (error || !entrega) {
-                document.getElementById('card-rastreio').innerHTML = '<p style="text-align:center; color:red;">Entrega não encontrada.</p>';
-                return;
-            }
-
-            document.getElementById('loja-nome').innerText = entrega.loja_nome || "Loja Parceira";
-            document.getElementById('cliente-nome').innerText = entrega.cliente_nome || "-";
-            document.getElementById('cliente-endereco').innerText = entrega.endereco || "-";
-            document.getElementById('pin-entrega').innerText = entrega.codigo_entrega || "----";
-
-            // Busca as coordenadas do motoboy atribuído
-            let lat = null;
-            let lng = null;
-
-            if (entrega.motoboy_id) {
-                const { data: mb } = await db.from('motoboys').select('lat, lng').eq('id', entrega.motoboy_id).single();
-                if (mb && mb.lat && mb.lng) {
-                    lat = mb.lat;
-                    lng = mb.lng;
-                }
-            }
-
-            // Fallback caso o motoboy ainda não tenha enviado sinal de GPS
-            if (!lat || !lng) {
-                lat = -20.4485;
-                lng = -50.2452;
-            }
-
-            atualizarMapaLeaflet(lat, lng);
-        }
-
-        function atualizarMapaLeaflet(lat, lng) {
-            if (!map) {
-                map = L.map('map-rastreio', { zoomControl: false }).setView([lat, lng], 16);
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-            }
-
-            // Mesmo ícone limpo com emoji de moto 🏍️ usado no painel do motoboy
-            const iconeMoto = L.divIcon({
-                className: 'custom-moto-icon',
-                html: '<div style="background:#28a745; color:#fff; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; box-shadow:0 4px 10px rgba(0,0,0,0.4); border:2px solid #fff;">🏍️</div>',
-                iconSize: [38, 38],
-                iconAnchor: [19, 19]
-            });
-
-            if (motoMarker) {
-                motoMarker.setLatLng([lat, lng]);
-            } else {
-                motoMarker = L.marker([lat, lng], { icon: iconeMoto }).addTo(map).bindPopup('Motoboy a caminho');
-            }
-
-            map.setView([lat, lng], map.getZoom());
-            setTimeout(() => { map.invalidateSize(); }, 200);
-        }
-    </script>
+  carregarRastreio();
+  setInterval(carregarRastreio, 5000);
+</script>
 </body>
 </html>
