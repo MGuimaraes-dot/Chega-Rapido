@@ -58,7 +58,8 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 <div class="card">
 <h2 id="nomeLoja" style="margin:0">Loja</h2>
 <p id="cnpjLoja" style="color:#666;margin:4px 0 0;font-size:13px"></p>
-<p id="cidadeLoja" style="color:#00a650;font-weight:700;margin:6px 0 0;font-size:13px">📍 Detectando cidade...</p>
+<!-- Cidade puxada estritamente do cadastro da loja -->
+<p id="cidadeLoja" style="color:#00a650;font-weight:700;margin:6px 0 0;font-size:13px">📍 Carregando cidade...</p>
 <p id="enderecoRetiradaInfo" style="color:#666;font-size:12px;margin:4px 0 0"></p>
 
 <hr style="border:0;border-top:1px solid #eee;margin:16px 0">
@@ -99,6 +100,11 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
   document.getElementById('cnpjLoja').innerText = 'CNPJ: ' + loja.cnpj;
   document.getElementById('enderecoRetiradaInfo').innerText = '📦 Retirada: ' + (loja.endereco_retirada || loja.endereco || '');
 
+  // DEFINE A CIDADE EXATA DA LOJA (Sem geolocalização intrusiva)
+  const cidadeDaLoja = loja.cidade || 'Meridiano';
+  document.getElementById('cidadeLoja').innerText = '📍 ' + cidadeDaLoja;
+  document.getElementById('cidade').value = cidadeDaLoja;
+
   window.abrirConfig = function(abrir) {
     document.getElementById('modalConfig').style.display = abrir ? 'flex' : 'none';
     if(abrir) carregarExtratoLoja();
@@ -108,31 +114,6 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
     localStorage.clear();
     location.href = 'index.html';
   };
-
-  function setCidade(c) {
-    if(!c) return;
-    document.getElementById('cidade').value = c;
-    document.getElementById('cidadeLoja').innerText = '📍 ' + c;
-    localStorage.setItem('cidade_atual', c);
-  }
-  
-  const cidadeSalva = localStorage.getItem('cidade_atual');
-  if(cidadeSalva) {
-    setCidade(cidadeSalva);
-  } else {
-    setCidade('Meridiano');
-  }
-
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(async pos => {
-      try{
-        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
-        const d = await r.json();
-        const cidade = d.address.city || d.address.town || d.address.village || d.address.municipality;
-        if(cidade) setCidade(cidade);
-      }catch(e){}
-    }, ()=>{}, {timeout:5000});
-  }
 
   document.getElementById('cep').addEventListener('blur', async () => {
     let cep = document.getElementById('cep').value.replace(/\D/g,''); 
@@ -144,7 +125,7 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
       if(d.erro){ document.getElementById('cepMsg').innerText = 'CEP não encontrado'; return; }
       document.getElementById('endereco').value = d.logradouro || ''; 
       document.getElementById('bairro').value = d.bairro || ''; 
-      document.getElementById('cidade').value = d.localidade || '';
+      document.getElementById('cidade').value = d.localidade || cidadeDaLoja;
       document.getElementById('cepMsg').innerText = '✅ Endereço preenchido';
       document.getElementById('numero').focus();
       atualizarPreviaFrete();
@@ -155,12 +136,12 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
   document.getElementById('endereco').addEventListener('input', () => {
     clearTimeout(timer);
     const rua = document.getElementById('endereco').value.trim();
-    const cidade = document.getElementById('cidade').value.trim() || '';
+    const cidade = document.getElementById('cidade').value.trim() || cidadeDaLoja;
     const box = document.getElementById('sugestoes');
     if(rua.length < 3){ box.style.display = 'none'; return; }
     timer = setTimeout(async () => {
       try{
-        const q = cidade ? rua + ', ' + cidade + ', Brasil' : rua + ', Brasil';
+        const q = rua + ', ' + cidade + ', Brasil';
         const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`);
         const dados = await r.json();
         if(!dados || !dados.length){ box.style.display = 'none'; return; }
@@ -190,7 +171,6 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
   async function obterCoordenadas(enderecoTexto, cidadeTexto) {
     const tentativas = [
       `${enderecoTexto}, ${cidadeTexto}, SP, Brasil`,
-      `${enderecoTexto.split('-')[0].trim()}, ${cidadeTexto}, SP, Brasil`,
       `${cidadeTexto}, SP, Brasil`
     ];
     for(const query of tentativas){
@@ -205,9 +185,7 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 
   async function calcularKm(enderecoEntrega, cidadeEntrega) {
     const retiradaTexto = loja.endereco_retirada || loja.endereco || '';
-    const cidadeLojaTexto = loja.cidade || cidadeSalva || 'Meridiano';
-
-    const coordLoja = await obterCoordenadas(retiradaTexto, cidadeLojaTexto);
+    const coordLoja = await obterCoordenadas(retiradaTexto, cidadeDaLoja);
     const coordDestino = await obterCoordenadas(enderecoEntrega, cidadeEntrega);
 
     if(coordLoja && coordDestino){
@@ -416,7 +394,7 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
   }
 
   carregar();
-  setInterval(carregar, 10000); // Atualiza a lista a cada 10s
+  setInterval(carregar, 10000);
 </script>
 </body>
 </html>
