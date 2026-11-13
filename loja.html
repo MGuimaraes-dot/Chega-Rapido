@@ -107,8 +107,13 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
     document.getElementById('cidadeLoja').innerText = '📍 ' + c;
     localStorage.setItem('cidade_atual', c);
   }
+  
   const cidadeSalva = localStorage.getItem('cidade_atual');
-  if(cidadeSalva) setCidade(cidadeSalva);
+  if(cidadeSalva) {
+    setCidade(cidadeSalva);
+  } else {
+    setCidade('Meridiano'); // Fallback inicial padrão
+  }
 
   if(navigator.geolocation){
     navigator.geolocation.getCurrentPosition(async pos => {
