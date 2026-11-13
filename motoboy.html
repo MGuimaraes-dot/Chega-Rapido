@@ -19,8 +19,17 @@
             color: white;
             padding: 15px;
             border-radius: 8px;
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 20px;
+        }
+        .config-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: white;
         }
         .card {
             background: white;
@@ -62,8 +71,12 @@
 <body>
 
     <div class="header-container">
-        <h2>ENTREAQUI - MOTOBOY</h2>
-        <p id="nome-motoboy">Carregando dados do motoboy...</p>
+        <div>
+            <h2 style="margin: 0;">ENTREAQUI - MOTOBOY</h2>
+            <p id="nome-motoboy" style="margin: 5px 0 0 0; font-size: 14px;">Carregando dados do motoboy...</p>
+        </div>
+        <!-- Botão de Configuração (Engrenagem) Restaurado -->
+        <button class="config-btn" onclick="abrirConfiguracoesMotoboy()" title="Configurações / Trocar CPF">⚙️</button>
     </div>
 
     <!-- SINAL DE GPS CONDICIONAL -->
@@ -101,7 +114,6 @@
         const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
         
-        // Usamos 'db' para evitar o conflito de nome com o CDN do Supabase
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const cpfMotoboyLogado = localStorage.getItem('motoboy_cpf') || "38517013808"; 
@@ -124,11 +136,20 @@
             }
         };
 
+        // Função da Engrenagem para alternar o CPF do motoboy logado
+        function abrirConfiguracoesMotoboy() {
+            let cpfDigitado = prompt("Digite o CPF do motoboy para alternar o cadastro:", cpfMotoboyLogado);
+            if (cpfDigitado && cpfDigitado.trim() !== "") {
+                localStorage.setItem('motoboy_cpf', cpfDigitado.trim());
+                location.reload();
+            }
+        }
+
         async function carregarDadosMotoboy() {
             try {
                 const { data, error } = await db
                     .from('motoboys')
-                    .select('id, nome_completo, nome, cpf, placa')
+                    .select('id, nome_completo, nome, cpf, placa, placa_moto')
                     .eq('cpf', cpfMotoboyLogado)
                     .limit(1);
 
@@ -142,9 +163,10 @@
                     const motoboy = data[0];
                     motoboyLogadoId = motoboy.id;
                     const nomeExibir = motoboy.nome_completo || motoboy.nome || "Motoboy";
-                    document.getElementById('nome-motoboy').innerText = `${nomeExibir} | CPF: ${motoboy.cpf} | Placa: ${motoboy.placa || 'N/A'}`;
+                    const placaExibir = motoboy.placa_moto || motoboy.placa || 'N/A';
+                    document.getElementById('nome-motoboy').innerText = `${nomeExibir} | CPF: ${motoboy.cpf} | Placa: ${placaExibir}`;
                 } else {
-                    document.getElementById('nome-motoboy').innerText = "Aviso: CPF do motoboy não encontrado na base.";
+                    document.getElementById('nome-motoboy').innerText = "Aviso: CPF não encontrado. Clique na ⚙️ para configurar.";
                 }
             } catch (err) {
                 console.error("Erro crítico:", err);
@@ -188,7 +210,7 @@
                     .from('entregas')
                     .select('*')
                     .eq('motoboy_id', motoboyLogadoId)
-                    .eq('status', 'em_andamento');
+                    .in('status', ['em_andamento', 'aceita', 'retirada']);
 
                 if (andamentos && andamentos.length > 0) {
                     sinalGps.style.display = 'block';
@@ -283,11 +305,12 @@
             verificarPainelMotoboy();
         }
 
+        // Atualizado para 'entregue' para integrar corretamente com os relatórios e faturamentos do Admin
         async function finalizarEntrega(idEntrega) {
             const { error } = await db
                 .from('entregas')
                 .update({ 
-                    status: 'concluida', 
+                    status: 'entregue', 
                     entregue_em: new Date().toISOString() 
                 })
                 .eq('id', idEntrega);
@@ -295,6 +318,8 @@
             if (!error) {
                 alert("Entrega finalizada com sucesso!");
                 verificarPainelMotoboy();
+            } else {
+                alert("Erro ao finalizar entrega: " + error.message);
             }
         }
     </script>
