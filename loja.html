@@ -296,7 +296,7 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
       
       const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
       const linkRastreio = `${baseUrl}/rastreio.html?id=${novaEntrega.id}`;
-      const msgZap = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido foi confirmado!\n\n🔑 *PIN de Entrega:* ${codigoEntrega} (informe ao motoboy).\n\n📍 *Acompanhe ao vivo:*\n${linkRastreio}`);
+      const msgZap = encodeURIComponent(`Olá *${cliente}*! 📦 *${loja.nome_fantasia || loja.nome}* confirmou seu pedido!\n\n🔑 *PIN de Entrega:* ${codigoEntrega} (informe ao motoboy somente ao receber).\n\n📍 *Acompanhe a entrega ao vivo:*\n${linkRastreio}`);
       const urlWhats = `https://wa.me/${whatsappCliente}?text=${msgZap}`;
       
       document.getElementById('btnZapCliente').href = urlWhats;
