@@ -1,67 +1,82 @@
-<!DOCTYPE html><html lang="pt-BR"><head>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Admin - EntreAqui</title>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- jsPDF para relatórios -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- Leaflet CSS & JS para o Radar -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
-header{background:#111;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:20px}
-.card{max-width:720px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
-.tabs{display:flex;background:#f1f1f1;border-radius:12px;padding:4px;margin-bottom:14px;gap:4px}.tabs button{flex:1;padding:10px 6px;border:0;border-radius:9px;font-weight:800;cursor:pointer;background:transparent;font-size:12px}
-.tabs button.ativo{background:#111;color:#fff}
-label{font-size:13px;font-weight:700;display:block;margin:12px 0 4px}
-input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;font-size:14px}
-.btn{width:100%;padding:12px;border:0;border-radius:12px;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px}
-.btn-green{background:#00a650;color:#fff}.btn-red{background:#fee2e2;color:#991b1b}.btn-gray{background:#eee;color:#333}.btn-dark{background:#111;color:#fff}.btn-blue{background:#1976d2;color:#fff}.btn-orange{background:#ff5a00;color:#fff}
-.item{border:1px solid #eee;border-radius:12px;padding:12px;margin-top:10px;background:#fafafa}
-.badge{padding:4px 8px;border-radius:20px;font-size:11px;font-weight:700;background:#fff3e0;color:#e65100}
-.small{font-size:12px;color:#666;line-height:1.4}
-.fotos a{margin-right:12px;font-size:12px;font-weight:700;color:#1976d2}
-.tabela-rel{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}
-.tabela-rel th, .tabela-rel td{border:1px solid #ddd;padding:8px;text-align:left}
-.tabela-rel th{background:#f3f4f6}
-#mapRadar{width:100%;height:380px;border-radius:14px;margin-top:12px;border:2px solid #111}
-.row-dinamica{display:flex;gap:10px}
-.row-dinamica > div{flex:1}
-</style></head><body>
+<style>
+  *{box-sizing:border-box;font-family:system-ui,Arial}
+  body{margin:0;background:#fff5ef}
+  header{background:#111;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:20px}
+  .card{max-width:720px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+  .tabs{display:flex;background:#f1f1f1;border-radius:12px;padding:4px;margin-bottom:14px;gap:4px}
+  .tabs button{flex:1;padding:10px 6px;border:0;border-radius:9px;font-weight:800;cursor:pointer;background:transparent;font-size:12px}
+  .tabs button.ativo{background:#111;color:#fff}
+  label{font-size:13px;font-weight:700;display:block;margin:12px 0 4px}
+  input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;font-size:14px}
+  .btn{width:100%;padding:12px;border:0;border-radius:12px;font-weight:800;font-size:14px;cursor:pointer;margin-top:8px}
+  .btn-green{background:#00a650;color:#fff}.btn-red{background:#fee2e2;color:#991b1b}.btn-gray{background:#eee;color:#333}.btn-dark{background:#111;color:#fff}.btn-blue{background:#1976d2;color:#fff}.btn-orange{background:#ff5a00;color:#fff}
+  .item{border:1px solid #eee;border-radius:12px;padding:12px;margin-top:10px;background:#fafafa}
+  .badge{padding:4px 8px;border-radius:20px;font-size:11px;font-weight:700;background:#fff3e0;color:#e65100}
+  .small{font-size:12px;color:#666;line-height:1.4}
+  .fotos a{margin-right:12px;font-size:12px;font-weight:700;color:#1976d2}
+  .tabela-rel{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px}
+  .tabela-rel th, .tabela-rel td{border:1px solid #ddd;padding:8px;text-align:left}
+  .tabela-rel th{background:#f3f4f6}
+  #mapRadar{width:100%;height:380px;border-radius:14px;margin-top:12px;border:2px solid #111}
+  .row-dinamica{display:flex;gap:10px}
+  .row-dinamica > div{flex:1}
+</style>
+</head>
+<body>
+
 <header>📦 ENTREAQUI - ADMIN</header>
 <div class="card">
 <div class="tabs">
-<button type="button" id="tabMoto" class="ativo" onclick="trocarAba('moto')">🛵 Motoboys</button>
-<button type="button" id="tabLoja" onclick="trocarAba('loja')">🏪 Lojas</button>
-<button type="button" id="tabRadar" onclick="trocarAba('radar')">🗺️ Radar Frota</button>
-<button type="button" id="tabRel" onclick="trocarAba('rel')">📊 Relatórios & Acerto</button>
+  <button type="button" id="tabMoto" class="ativo" onclick="trocarAba('moto')">🛵 Motoboys</button>
+  <button type="button" id="tabLoja" onclick="trocarAba('loja')">🏪 Lojas</button>
+  <button type="button" id="tabRadar" onclick="trocarAba('radar')">🗺️ Radar Frota</button>
+  <button type="button" id="tabRel" onclick="trocarAba('rel')">📊 Relatórios & Acerto</button>
 </div>
 
+<!-- ABA MOTOBOYS -->
 <div id="abaMoto">
-<div class="row-dinamica">
-  <div>
-    <label>🌧️ Clima (Chuva +R$ 2)</label>
-    <button id="btnChuva" class="btn btn-gray" onclick="alternarChuva()">Carregando...</button>
+  <div class="row-dinamica">
+    <div>
+      <label>🌧️ Clima (Chuva +R$ 2)</label>
+      <button id="btnChuva" class="btn btn-gray" onclick="alternarChuva()">Carregando...</button>
+    </div>
+    <div>
+      <label>🔥 Movimento (Pico +R$ 2)</label>
+      <button id="btnPico" class="btn btn-gray" onclick="alternarPico()">Carregando...</button>
+    </div>
   </div>
-  <div>
-    <label>🔥 Movimento (Pico +R$ 2)</label>
-    <button id="btnPico" class="btn btn-gray" onclick="alternarPico()">Carregando...</button>
-  </div>
+
+  <h3>🟡 Motoboys Pendentes</h3>
+  <div id="pendentesMoto"><p class="small">Carregando...</p></div>
+  <h3>✅ Motoboys Aprovados</h3>
+  <div id="aprovadosMoto"><p class="small">Carregando...</p></div>
+  <h3>🔴 Bloqueados / Rejeitados</h3>
+  <div id="bloqueadosMoto"><p class="small">Carregando...</p></div>
+  <button class="btn btn-gray" onclick="carregarTudo()">🔄 Atualizar Dados</button>
 </div>
 
-<h3>🟡 Motoboys Pendentes</h3>
-<div id="pendentesMoto"><p class="small">Carregando...</p></div>
-<h3>✅ Motoboys Aprovados</h3>
-<div id="aprovadosMoto"><p class="small">Carregando...</p></div>
-<h3>🔴 Bloqueados / Rejeitados</h3>
-<div id="bloqueadosMoto"><p class="small">Carregando...</p></div>
-<button class="btn btn-gray" onclick="carregarTudo()">🔄 Atualizar Dados</button>
-</div>
-
+<!-- ABA LOJAS -->
 <div id="abaLoja" style="display:none">
-<h3>🟡 Lojas Pendentes - para aprovar</h3>
-<div id="pendentesLoja"><p class="small">Carregando...</p></div>
-<h3>🏪 Lojas Cadastradas e Aprovadas</h3>
-<div id="aprovadasLoja"><p class="small">Carregando...</p></div>
-<button class="btn btn-gray" onclick="carregarTudo()">🔄 Atualizar Lojas</button>
+  <h3>🟡 Lojas Pendentes - para aprovar</h3>
+  <div id="pendentesLoja"><p class="small">Carregando...</p></div>
+  <h3>🏪 Lojas Cadastradas e Aprovadas</h3>
+  <div id="aprovadasLoja"><p class="small">Carregando...</p></div>
+  <button class="btn btn-gray" onclick="carregarTudo()">🔄 Atualizar Lojas</button>
 </div>
 
+<!-- ABA RADAR -->
 <div id="abaRadar" style="display:none">
   <h3 style="margin-top:0">🗺️ Radar ao Vivo da Frota Online</h3>
   <p class="small">Acompanhe em tempo real onde estão os motoboys disponíveis na cidade.</p>
@@ -69,30 +84,34 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
   <button class="btn btn-dark" onclick="atualizarRadar()" style="margin-top:10px">🔄 Atualizar Posições Agora</button>
 </div>
 
+<!-- ABA RELATÓRIOS -->
 <div id="abaRel" style="display:none">
-<h3>📊 Relatório Detalhado & Fechamento de Ciclo</h3>
-<div class="row-dinamica">
-  <div><label>Data Início</label><input type="date" id="dataIni"></div>
-  <div><label>Data Fim</label><input type="date" id="dataFim"></div>
+  <h3>📊 Relatório Detalhado & Fechamento de Ciclo</h3>
+  <div class="row-dinamica">
+    <div><label>Data Início</label><input type="date" id="dataIni"></div>
+    <div><label>Data Fim</label><input type="date" id="dataFim"></div>
+  </div>
+  <button class="btn btn-green" onclick="gerarRelatorioConsolidado()" style="margin-top:10px">Gerar Relatório Completo</button>
+  <div id="relGeral" style="margin-top:14px;font-size:13px"></div>
+
+  <hr style="border:0;border-top:1px solid #ddd;margin:20px 0">
+
+  <h3>📄 Baixar Extratos em PDF</h3>
+  <label>Selecione o Motoboy para Extrato</label>
+  <select id="selectMotoboyPdf"><option value="">-- Escolha o Motoboy --</option></select>
+  <button class="btn btn-blue" onclick="baixarPdfMotoboy()">📥 Baixar PDF Extrato Motoboy</button>
+
+  <label style="margin-top:14px">Selecione a Loja para Extrato</label>
+  <select id="selectLojaPdf"><option value="">-- Escolha a Loja --</option></select>
+  <button class="btn btn-dark" onclick="baixarPdfLoja()">📥 Baixar PDF Cobrança Loja</button>
 </div>
-<button class="btn btn-green" onclick="gerarRelatorioConsolidado()" style="margin-top:10px">Gerar Relatório Completo</button>
-<div id="relGeral" style="margin-top:14px;font-size:13px"></div>
-
-<hr style="border:0;border-top:1px solid #ddd;margin:20px 0">
-
-<h3>📄 Baixar Extratos em PDF</h3>
-<label>Selecione o Motoboy para Extrato</label>
-<select id="selectMotoboyPdf"><option value="">-- Escolha o Motoboy --</option></select>
-<button class="btn btn-blue" onclick="baixarPdfMotoboy()">📥 Baixar PDF Extrato Motoboy</button>
-
-<label style="margin-top:14px">Selecione a Loja para Extrato</label>
-<select id="selectLojaPdf"><option value="">-- Escolha a Loja --</option></select>
-<button class="btn btn-dark" onclick="baixarPdfLoja()">📥 Baixar PDF Cobrança Loja</button>
-</div>
 </div>
 
-<script type="module">
-  import { supabaseClient } from './supabase.js';
+<script>
+  // Inicialização direta do Supabase (sem erros de módulo)
+  const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   let mapRadar = null;
   let radarMarkers = [];
@@ -114,7 +133,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
 
   async function carregarConfigDinamica() {
     try {
-      const {data} = await supabaseClient.from('config').select('*').eq('id', 1).maybeSingle();
+      const {data} = await db.from('config').select('*').eq('id', 1).maybeSingle();
       const bChuva = document.getElementById('btnChuva');
       const bPico = document.getElementById('btnPico');
       
@@ -131,18 +150,18 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
   }
 
   window.alternarChuva = async function() {
-    const {data} = await supabaseClient.from('config').select('*').eq('id', 1).maybeSingle();
+    const {data} = await db.from('config').select('*').eq('id', 1).maybeSingle();
     const novo = !(data?.chovendo);
-    if(!data) await supabaseClient.from('config').insert([{id:1, chovendo:novo}]);
-    else await supabaseClient.from('config').update({chovendo:novo}).eq('id', 1);
+    if(!data) await db.from('config').insert([{id:1, chovendo:novo}]);
+    else await db.from('config').update({chovendo:novo}).eq('id', 1);
     carregarConfigDinamica();
   };
 
   window.alternarPico = async function() {
-    const {data} = await supabaseClient.from('config').select('*').eq('id', 1).maybeSingle();
+    const {data} = await db.from('config').select('*').eq('id', 1).maybeSingle();
     const novo = !(data?.horario_pico);
-    if(!data) await supabaseClient.from('config').insert([{id:1, horario_pico:novo}]);
-    else await supabaseClient.from('config').update({horario_pico:novo}).eq('id', 1);
+    if(!data) await db.from('config').insert([{id:1, horario_pico:novo}]);
+    else await db.from('config').update({horario_pico:novo}).eq('id', 1);
     carregarConfigDinamica();
   };
 
@@ -156,7 +175,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
     radarMarkers.forEach(m => mapRadar.removeLayer(m));
     radarMarkers = [];
 
-    const {data: motosOnline} = await supabaseClient.from('motoboys').select('*').eq('online', true);
+    const {data: motosOnline} = await db.from('motoboys').select('*').eq('online', true);
     const bounds = [];
 
     (motosOnline || []).forEach(m => {
@@ -182,7 +201,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
     carregarConfigDinamica();
 
     try {
-      const {data: pendM} = await supabaseClient.from('motoboys').select('*').eq('status','pendente').order('created_at',{ascending:true});
+      const {data: pendM} = await db.from('motoboys').select('*').eq('status','pendente').order('created_at',{ascending:true});
       document.getElementById('pendentesMoto').innerHTML = (pendM||[]).map(m => `
         <div class="item"><b>${m.nome_completo||m.nome||''}</b><br>
         <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''} | Pix: ${m.chave_pix||'Não informada'}</span><br>
@@ -195,7 +214,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
     }
 
     try {
-      const {data: aprM} = await supabaseClient.from('motoboys').select('*').eq('status','aprovado').order('created_at',{ascending:false});
+      const {data: aprM} = await db.from('motoboys').select('*').eq('status','aprovado').order('created_at',{ascending:false});
       document.getElementById('aprovadosMoto').innerHTML = (aprM||[]).map(m => `
         <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.online?'🟢 ONLINE':'⚪ OFFLINE'}</span><br>
         <span class="small">CPF: ${m.cpf} | Pix: ${m.chave_pix||'N/A'} | Placa: ${m.placa_moto||m.placa||'N/A'}</span><br>
@@ -205,7 +224,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
     }
 
     try {
-      const {data: bloM} = await supabaseClient.from('motoboys').select('*').in('status',['bloqueado','rejeitado']).order('created_at',{ascending:false});
+      const {data: bloM} = await db.from('motoboys').select('*').in('status',['bloqueado','rejeitado']).order('created_at',{ascending:false});
       document.getElementById('bloqueadosMoto').innerHTML = (bloM||[]).map(m => `
         <div class="item"><b>${m.nome_completo||m.nome||''}</b> - <span class="badge">${m.status}</span><br>
         <span class="small">CPF: ${m.cpf} | Placa: ${m.placa_moto||m.placa||''}</span><br>
@@ -215,7 +234,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
     }
 
     try {
-      const {data: pendL} = await supabaseClient.from('lojas').select('*').eq('status','pendente').order('created_at',{ascending:true});
+      const {data: pendL} = await db.from('lojas').select('*').eq('status','pendente').order('created_at',{ascending:true});
       document.getElementById('pendentesLoja').innerHTML = (pendL||[]).map(l => `
         <div class="item"><b>${l.nome_fantasia||l.nome||''}</b><br>
         <span class="small">CNPJ: ${l.cnpj} | Responsável: ${l.nome_responsavel||'N/A'} | Whats: ${l.whatsapp||''}</span><br>
@@ -229,7 +248,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
     }
 
     try {
-      const {data: aprL} = await supabaseClient.from('lojas').select('*').eq('status','aprovado').order('created_at',{ascending:false});
+      const {data: aprL} = await db.from('lojas').select('*').eq('status','aprovado').order('created_at',{ascending:false});
       document.getElementById('aprovadasLoja').innerHTML = (aprL||[]).map(l => `
         <div class="item"><b>${l.nome_fantasia||l.nome||''}</b> - <span class="badge">APROVADA</span><br>
         <span class="small">CNPJ: ${l.cnpj} | Retirada: ${l.endereco_retirada||l.endereco||''} | Whats: ${l.whatsapp||''}</span><br>
@@ -240,32 +259,32 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
   };
 
   window.aprovarMoto = async function(id, tel) {
-    await supabaseClient.from('motoboys').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
+    await db.from('motoboys').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
     if(tel) window.open(`https://wa.me/55${tel}?text=${encodeURIComponent('✅ Você foi APROVADO no EntreAqui!')}`,'_blank');
     alert('Motoboy aprovado!'); carregarTudo();
   };
-  window.reprovarMoto = async function(id) { if(confirm('Reprovar?')){ await supabaseClient.from('motoboys').update({status:'rejeitado'}).eq('id',id); carregarTudo(); } };
-  window.bloquearMoto = async function(id) { if(confirm('Bloquear?')){ await supabaseClient.from('motoboys').update({status:'bloqueado', bloqueado:true, online:false}).eq('id',id); carregarTudo(); } };
-  window.desbloquearMoto = async function(id) { await supabaseClient.from('motoboys').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id); carregarTudo(); };
+  window.reprovarMoto = async function(id) { if(confirm('Reprovar?')){ await db.from('motoboys').update({status:'rejeitado'}).eq('id',id); carregarTudo(); } };
+  window.bloquearMoto = async function(id) { if(confirm('Bloquear?')){ await db.from('motoboys').update({status:'bloqueado', bloqueado:true, online:false}).eq('id',id); carregarTudo(); } };
+  window.desbloquearMoto = async function(id) { await db.from('motoboys').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id); carregarTudo(); };
 
   window.aprovarLoja = async function(id, tel) {
-    await supabaseClient.from('lojas').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
+    await db.from('lojas').update({status:'aprovado', aprovado:true, bloqueado:false}).eq('id',id);
     if(tel) window.open(`https://wa.me/55${tel}?text=${encodeURIComponent('✅ Sua Loja foi APROVADA no EntreAqui!')}`,'_blank');
     alert('Loja aprovada!'); carregarTudo();
   };
-  window.reprovarLoja = async function(id) { if(confirm('Rejeitar?')){ await supabaseClient.from('lojas').update({status:'rejeitado'}).eq('id',id); carregarTudo(); } };
-  window.bloquearLoja = async function(id) { if(confirm('Bloquear?')){ await supabaseClient.from('lojas').update({status:'bloqueado', bloqueado:true}).eq('id',id); carregarTudo(); } };
+  window.reprovarLoja = async function(id) { if(confirm('Rejeitar?')){ await db.from('lojas').update({status:'rejeitado'}).eq('id',id); carregarTudo(); } };
+  window.bloquearLoja = async function(id) { if(confirm('Bloquear?')){ await db.from('lojas').update({status:'bloqueado', bloqueado:true}).eq('id',id); carregarTudo(); } };
 
   window.baixarCicloMotoboy = async function(motoId) {
     if(!confirm('Confirmar que todas as corridas em aberto deste motoboy foram PAGAS?')) return;
-    await supabaseClient.from('entregas').update({pago_motoboy: true}).eq('motoboy_id', motoId).eq('status','entregue').eq('pago_motoboy', false);
+    await db.from('entregas').update({pago_motoboy: true}).eq('motoboy_id', motoId).eq('status','entregue').eq('pago_motoboy', false);
     alert('✅ Ciclo do motoboy baixado como PAGO!');
     gerarRelatorioConsolidado();
   };
 
   window.baixarCicloLoja = async function(lojaId) {
     if(!confirm('Confirmar que todas as faturas em aberto desta loja foram RECEBIDAS?')) return;
-    await supabaseClient.from('entregas').update({pago_loja: true}).eq('loja_id', lojaId).eq('status','entregue').eq('pago_loja', false);
+    await db.from('entregas').update({pago_loja: true}).eq('loja_id', lojaId).eq('status','entregue').eq('pago_loja', false);
     alert('✅ Ciclo da loja baixado como RECEBIDO!');
     gerarRelatorioConsolidado();
   };
@@ -274,17 +293,16 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
     const ini = document.getElementById('dataIni').value;
     const fim = document.getElementById('dataFim').value;
 
-    let qEnt = supabaseClient.from('entregas').select('*');
+    let qEnt = db.from('entregas').select('*');
     if(ini) qEnt = qEnt.gte('created_at', ini + 'T00:00:00');
     if(fim) qEnt = qEnt.lte('created_at', fim + 'T23:59:59');
 
     const {data: entregas} = await qEnt;
-    const {data: motoboys} = await supabaseClient.from('motoboys').select('*');
-    const {data: lojas} = await supabaseClient.from('lojas').select('*');
+    const {data: motoboys} = await db.from('motoboys').select('*');
+    const {data: lojas} = await db.from('lojas').select('*');
 
     const concluidas = (entregas || []).filter(e => e.status === 'entregue');
     
-    // Cálculo do Tempo Médio de Entrega em minutos
     let temposMinutos = [];
     concluidas.forEach(e => {
       if(e.created_at && e.entregue_em){
@@ -303,7 +321,6 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
     });
     let lucroPlataforma = totalReceberLojas - totalPagarMotoboys;
 
-    // Montando estatísticas por motoboy para criar o Ranking
     let dadosMotoboys = (motoboys || []).map(m => {
       const entreguesMoto = concluidas.filter(e => e.motoboy_id === m.id).length;
       const aceitasMoto = (entregas || []).filter(e => e.motoboy_id === m.id && ['aceita','retirada','entregue'].includes(e.status)).length;
@@ -322,7 +339,6 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
       return { m, entreguesMoto, aceitasMoto, recusadasMoto, taxaRecusa, valorEmAberto };
     });
 
-    // Ordenar por Ranking (quem concluiu mais entregas fica em primeiro #1)
     dadosMotoboys.sort((a, b) => b.entreguesMoto - a.entreguesMoto);
 
     let htmlMotoboys = `<h4>🏆 Ranking & Desempenho por Motoboy</h4>
@@ -374,10 +390,10 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
   };
 
   async function carregarSelectsPdf() {
-    const {data: motos} = await supabaseClient.from('motoboys').select('id, nome_completo, nome, placa_moto, placa').eq('status','aprovado');
+    const {data: motos} = await db.from('motoboys').select('id, nome_completo, nome, placa_moto, placa').eq('status','aprovado');
     document.getElementById('selectMotoboyPdf').innerHTML = '<option value="">-- Escolha o Motoboy --</option>' + (motos||[]).map(m=>`<option value="${m.id}">${m.nome_completo||m.nome} (${m.placa_moto||m.placa||'N/A'})</option>`).join('');
 
-    const {data: lojas} = await supabaseClient.from('lojas').select('id, nome_fantasia, nome').eq('status','aprovado');
+    const {data: lojas} = await db.from('lojas').select('id, nome_fantasia, nome').eq('status','aprovado');
     document.getElementById('selectLojaPdf').innerHTML = '<option value="">-- Escolha a Loja --</option>' + (lojas||[]).map(l=>`<option value="${l.id}">${l.nome_fantasia||l.nome}</option>`).join('');
   }
 
@@ -385,8 +401,8 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
     const motoId = document.getElementById('selectMotoboyPdf').value;
     if(!motoId) return alert('Selecione um motoboy');
     
-    const {data: moto} = await supabaseClient.from('motoboys').select('*').eq('id', motoId).maybeSingle();
-    const {data: entregas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).eq('status','entregue').order('entregue_em',{ascending:false});
+    const {data: moto} = await db.from('motoboys').select('*').eq('id', motoId).maybeSingle();
+    const {data: entregas} = await db.from('entregas').select('*').eq('motoboy_id', motoId).eq('status','entregue').order('entregue_em',{ascending:false});
     
     let total = 0;
     (entregas||[]).forEach(e => total += Number(e.valor_motoboy||0));
@@ -429,8 +445,8 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
     const lojaId = document.getElementById('selectLojaPdf').value;
     if(!lojaId) return alert('Selecione uma loja');
     
-    const {data: loja} = await supabaseClient.from('lojas').select('*').eq('id', lojaId).maybeSingle();
-    const {data: entregas} = await supabaseClient.from('entregas').select('*').eq('loja_id', lojaId).eq('status','entregue').order('entregue_em',{ascending:false});
+    const {data: loja} = await db.from('lojas').select('*').eq('id', lojaId).maybeSingle();
+    const {data: entregas} = await db.from('entregas').select('*').eq('loja_id', lojaId).eq('status','entregue').order('entregue_em',{ascending:false});
     
     let total = 0;
     (entregas||[]).forEach(e => total += Number(e.valor_frete_loja||0));
@@ -470,4 +486,5 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
 
   carregarTudo();
 </script>
-</body></html>
+</body>
+</html>
