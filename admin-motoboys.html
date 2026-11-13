@@ -284,6 +284,17 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
 
     const concluidas = (entregas || []).filter(e => e.status === 'entregue');
     
+    // Cálculo do Tempo Médio de Entrega em minutos
+    let temposMinutos = [];
+    concluidas.forEach(e => {
+      if(e.created_at && e.entregue_em){
+        let diffMs = new Date(e.entregue_em) - new Date(e.created_at);
+        let diffMins = diffMs / (1000 * 60);
+        if(diffMins > 0 && diffMins < 300) temposMinutos.push(diffMins);
+      }
+    });
+    let tempoMedioGeral = temposMinutos.length > 0 ? (temposMinutos.reduce((a, b) => a + b, 0) / temposMinutos.length).toFixed(0) : 0;
+
     let totalReceberLojas = 0;
     let totalPagarMotoboys = 0;
     concluidas.forEach(e => {
@@ -292,11 +303,8 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
     });
     let lucroPlataforma = totalReceberLojas - totalPagarMotoboys;
 
-    let htmlMotoboys = `<h4>🛵 Desempenho & Acerto por Motoboy</h4>
-      <table class="tabela-rel">
-        <tr><th>Motoboy</th><th>Concl.</th><th>Aceitas</th><th>Recus.</th><th>Tx Aceit.</th><th>A Pagar (Aberto)</th><th>Ação</th></tr>`;
-
-    (motoboys || []).forEach(m => {
+    // Montando estatísticas por motoboy para criar o Ranking
+    let dadosMotoboys = (motoboys || []).map(m => {
       const entreguesMoto = concluidas.filter(e => e.motoboy_id === m.id).length;
       const aceitasMoto = (entregas || []).filter(e => e.motoboy_id === m.id && ['aceita','retirada','entregue'].includes(e.status)).length;
       
@@ -304,21 +312,31 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
       (entregas || []).forEach(e => { if((e.recusados_por || []).includes(m.id)) recusadasMoto++; });
 
       const totalSolic = aceitasMoto + recusadasMoto;
-      const taxaAceit = totalSolic > 0 ? ((aceitasMoto / totalSolic) * 100).toFixed(0) : '0';
+      const taxaRecusa = totalSolic > 0 ? ((recusadasMoto / totalSolic) * 100).toFixed(0) : '0';
 
       let valorEmAberto = 0;
       (entregas || []).filter(e => e.motoboy_id === m.id && e.status === 'entregue' && !e.pago_motoboy).forEach(e => {
         valorEmAberto += Number(e.valor_motoboy || 0);
       });
 
+      return { m, entreguesMoto, aceitasMoto, recusadasMoto, taxaRecusa, valorEmAberto };
+    });
+
+    // Ordenar por Ranking (quem concluiu mais entregas fica em primeiro #1)
+    dadosMotoboys.sort((a, b) => b.entreguesMoto - a.entreguesMoto);
+
+    let htmlMotoboys = `<h4>🏆 Ranking & Desempenho por Motoboy</h4>
+      <table class="tabela-rel">
+        <tr><th>Pos</th><th>Motoboy</th><th>Concl.</th><th>Recusa</th><th>A Pagar</th><th>Ação</th></tr>`;
+
+    dadosMotoboys.forEach((item, index) => {
       htmlMotoboys += `<tr>
-        <td><b>${m.nome_completo || m.nome}</b><br><small>${m.placa_moto || m.placa || ''}</small></td>
-        <td>${entreguesMoto}</td>
-        <td>${aceitasMoto}</td>
-        <td style="color:${recusadasMoto>0?'red':'inherit'}">${recusadasMoto}</td>
-        <td><b>${taxaAceit}%</b></td>
-        <td style="color:#00a650"><b>R$ ${valorEmAberto.toFixed(2)}</b></td>
-        <td>${valorEmAberto > 0 ? `<button onclick="baixarCicloMotoboy('${m.id}')" style="background:#00a650;color:#fff;border:0;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:700;cursor:pointer">✅ Pagar</button>` : '<small>Quitado</small>'}</td>
+        <td><b>#${index + 1}</b></td>
+        <td><b>${item.m.nome_completo || item.m.nome}</b><br><small>${item.m.placa_moto || item.m.placa || ''}</small></td>
+        <td><b>${item.entreguesMoto}</b></td>
+        <td style="color:${Number(item.taxaRecusa)>0?'red':'inherit'}">${item.taxaRecusa}%</td>
+        <td style="color:#00a650"><b>R$ ${item.valorEmAberto.toFixed(2)}</b></td>
+        <td>${item.valorEmAberto > 0 ? `<button onclick="baixarCicloMotoboy('${item.m.id}')" style="background:#00a650;color:#fff;border:0;border-radius:6px;padding:6px 8px;font-size:11px;font-weight:700;cursor:pointer">✅ Pagar</button>` : '<small>Quitado</small>'}</td>
       </tr>`;
     });
     htmlMotoboys += `</table>`;
@@ -345,6 +363,7 @@ input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;fo
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:12px;border-radius:10px">
         <b>Resumo Geral do Período:</b><br>
         • Entregas Concluídas: <b>${concluidas.length}</b><br>
+        • ⏱️ Tempo Médio de Entrega: <b>${tempoMedioGeral} minutos</b><br>
         • Total Gerado pelas Lojas: <b>R$ ${totalReceberLojas.toFixed(2)}</b><br>
         • Total Gerado aos Motoboys: <b>R$ ${totalPagarMotoboys.toFixed(2)}</b><br>
         • <span style="color:#166534">Lucro Bruto da Plataforma: <b>R$ ${lucroPlataforma.toFixed(2)}</b></span>
