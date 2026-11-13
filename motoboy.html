@@ -14,6 +14,7 @@
         .btn-success { background-color: #28a745; width: 100%; }
         .btn-danger { background-color: #dc3545; width: 100%; }
         .btn-orange { background-color: #ff5a00; width: 100%; }
+        .btn-blue { background-color: #1976d2; width: 100%; }
         .btn-gray { background-color: #eee; color: #333; width: 100%; }
         .btn-online-toggle { width: 100%; padding: 12px; font-size: 15px; border-radius: 8px; border: 0; font-weight: 900; cursor: pointer; margin-bottom: 15px; }
         .btn:hover { opacity: 0.9; }
@@ -279,52 +280,55 @@
             const containerAndamento = document.getElementById('lista-entregas-andamento');
 
             try {
-                // 1. Verifica se já tem uma oferta direcionada especificamente para este motoboy na fila sequencial
-                const { data: ofertasDiretas } = await db
+                // 1. Verifica se já tenho entregas em andamento
+                const { data: andamentos } = await db
                     .from('entregas')
                     .select('*')
-                    .eq('motoboy_atual_id', motoboyLogadoId)
-                    .eq('status', 'pendente');
+                    .eq('motoboy_id', motoboyLogadoId)
+                    .in('status', ['aceita', 'retirada', 'em_andamento']);
 
+                const tenhoEntregaAtiva = andamentos && andamentos.length > 0;
+
+                // 2. Só busca novas ofertas na fila se eu NÃO tiver nenhuma entrega ativa
                 let ofertaAtiva = null;
 
-                if (ofertasDiretas && ofertasDiretas.length > 0) {
-                    ofertaAtiva = ofertasDiretas[0];
-                } else {
-                    // 2. Se não tem oferta direta, verifica se existem pedidos pendentes na fila geral sem dono atribuído
-                    const { data: pendentesGerais } = await db
+                if (!tenhoEntregaAtiva) {
+                    const { data: ofertasDiretas } = await db
                         .from('entregas')
                         .select('*')
-                        .eq('status', 'pendente')
-                        .is('motoboy_atual_id', null)
-                        .order('created_at', { ascending: true });
+                        .eq('motoboy_atual_id', motoboyLogadoId)
+                        .eq('status', 'pendente');
 
-                    if (pendentesGerais && pendentesGerais.length > 0) {
-                        // Filtra para ver quais motoboys estão ONLINE e livres para pegar a vez
-                        const { data: motoboysOnline } = await db
-                            .from('motoboys')
-                            .select('id')
-                            .eq('online', true)
-                            .order('id', { ascending: true }); // Ordem da fila baseada no ID/Cadastro
+                    if (ofertasDiretas && ofertasDiretas.length > 0) {
+                        ofertaAtiva = ofertasDiretas[0];
+                    } else {
+                        const { data: pendentesGerais } = await db
+                            .from('entregas')
+                            .select('*')
+                            .eq('status', 'pendente')
+                            .is('motoboy_atual_id', null)
+                            .order('created_at', { ascending: true });
 
-                        if (motoboysOnline && motoboysOnline.length > 0) {
-                            // O primeiro motoboy online da lista assume o primeiro pedido pendente da fila
-                            const primeiroDaFilaId = motoboysOnline[0].id;
-                            
-                            if (primeiroDaFilaId === motoboyLogadoId) {
-                                // Sou eu o primeiro da fila! Atribuo o pedido para mim temporariamente
-                                const pedidoParaMim = pendentesGerais[0];
+                        const pendentesFiltrados = (pendentesGerais || []).filter(e => {
+                            const recusados = e.recusados_por || [];
+                            return !recusados.includes(motoboyLogadoId);
+                        });
+
+                        if (pendentesFiltrados.length > 0) {
+                            const { data: motoboysOnline } = await db
+                                .from('motoboys')
+                                .select('id')
+                                .eq('online', true)
+                                .order('id', { ascending: true });
+
+                            if (motoboysOnline && motoboysOnline.length > 0 && motoboysOnline[0].id === motoboyLogadoId) {
+                                const primeiroPedido = pendentesFiltrados[0];
+                                await db.from('entregas')
+                                    .update({ motoboy_atual_id: motoboyLogadoId })
+                                    .eq('id', primeiroPedido.id)
+                                    .is('motoboy_atual_id', null);
                                 
-                                // Verifica se eu já recusei este pedido antes
-                                const recusados = pedidoParaMim.recusados_por || [];
-                                if (!recusados.includes(motoboyLogadoId)) {
-                                    await db.from('entregas')
-                                        .update({ motoboy_atual_id: motoboyLogadoId })
-                                        .eq('id', pedidoParaMim.id)
-                                        .is('motoboy_atual_id', null);
-                                    
-                                    ofertaAtiva = pedidoParaMim;
-                                }
+                                ofertaAtiva = primeiroPedido;
                             }
                         }
                     }
@@ -350,30 +354,45 @@
                     clearInterval(timerInterval);
                 }
 
-                // 3. Busca entregas em andamento deste motoboy (Permite agrupar se houver mais de uma aceita)
-                const { data: andamentos } = await db
-                    .from('entregas')
-                    .select('*')
-                    .eq('motoboy_id', motoboyLogadoId)
-                    .in('status', ['em_andamento', 'aceita', 'retirada']);
-
-                if (andamentos && andamentos.length > 0) {
+                // 3. Renderiza Entregas em Andamento com GPS Dinâmico por Etapa
+                if (tenhoEntregaAtiva) {
                     sinalGps.style.display = 'block';
                     let htmlAndamento = '';
                     
                     andamentos.forEach((ent, index) => {
+                        let mapa = "";
+                        let acaoHtml = "";
+
+                        // ETAPA 1: Aceitou, mas ainda não retirou -> Rota até a Loja
+                        if (ent.status === 'aceita' || ent.status === 'em_andamento') {
+                            mapa = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(ent.endereco_retirada || '')}`;
+                            acaoHtml = `
+                                <a href="${mapa}" target="_blank" class="btn btn-blue" style="display:block; text-align:center; padding:10px; border-radius:8px; margin-top:8px; text-decoration:none; font-weight:700;">🗺️ Rota até a Loja (Retirada)</a>
+                                <button class="btn btn-orange" style="background:#ff5a00; color:#fff; margin-top:8px; width:100%; border:0; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;" onclick="retirar('${ent.id}')">📦 Marcar como Retirado</button>
+                            `;
+                        } 
+                        // ETAPA 2: Já retirou -> Rota da Loja até o Cliente
+                        else if (ent.status === 'retirada') {
+                            mapa = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(ent.endereco_retirada || '')}&destination=${encodeURIComponent(ent.endereco || '')}`;
+                            acaoHtml = `
+                                <a href="${mapa}" target="_blank" class="btn btn-blue" style="display:block; text-align:center; padding:10px; border-radius:8px; margin-top:8px; text-decoration:none; font-weight:700;">🗺️ Rota até o Cliente (Entrega)</a>
+                                
+                                <label style="font-size: 12px; font-weight: 700; display: block; margin-top: 10px;">PIN de 4 dígitos do Cliente:</label>
+                                <input class="codigo" id="pin-${ent.id}" placeholder="0000" maxlength="4" inputmode="numeric">
+                                
+                                <button class="btn btn-success" onclick="finalizarEntrega('${ent.id}')">✅ Confirmar Entrega</button>
+                            `;
+                        }
+
                         htmlAndamento += `
-                            <div class="item" style="border-left: 4px solid #28a745;">
+                            <div class="item item-aceita" style="border-left: 4px solid #28a745; margin-bottom: 15px;">
                                 <p style="margin: 4px 0;"><strong>#${index + 1} - ${ent.cliente_nome || 'Cliente'}</strong> (${ent.loja_nome || 'Loja'})</p>
                                 <p style="margin: 4px 0; font-size: 13px;">📍 Retirar em: ${ent.endereco_retirada || '-'}</p>
                                 <p style="margin: 4px 0; font-size: 13px;">🎯 Entregar em: ${ent.endereco || '-'}</p>
                                 
-                                <label style="font-size: 12px; font-weight: 700; display: block; margin-top: 8px;">PIN de 4 dígitos do Cliente:</label>
-                                <input class="codigo" id="pin-${ent.id}" placeholder="0000" maxlength="4" inputmode="numeric">
+                                ${acaoHtml}
                                 
-                                <button class="btn btn-success" onclick="finalizarEntrega('${ent.id}')">✅ Confirmar Entrega</button>
-                                
-                                <button class="btn btn-danger" style="margin-top:6px; background:#e53e3e; font-size:12px; padding:6px" onclick="toggleBoxCancelar('${ent.id}')">❌ Cancelar / Devolver Corrida</button>
+                                <button class="btn btn-danger" style="margin-top:8px; background:#e53e3e; font-size:12px; padding:6px" onclick="toggleBoxCancelar('${ent.id}')">❌ Cancelar / Devolver Corrida</button>
                                 
                                 <div id="box-cancelar-${ent.id}" class="box-cancelar">
                                     <label style="font-size:11px; margin-top:0">Motivo do cancelamento:</label>
@@ -415,10 +434,11 @@
         async function aceitarEntregaAtual() {
             if (!entregaOfertaId || !motoboyLogadoId) return;
 
+            // Define status como 'aceita' para iniciar indo até a loja
             const { error } = await db
                 .from('entregas')
                 .update({ 
-                    status: 'em_andamento', 
+                    status: 'aceita', 
                     motoboy_id: motoboyLogadoId,
                     motoboy_atual_id: null,
                     aceita_em: new Date().toISOString()
@@ -429,9 +449,24 @@
             if (error) {
                 alert("Ops! O tempo esgotou ou outro motoboy aceitou primeiro.");
             } else {
-                alert("Entrega aceita com sucesso!");
+                alert("Entrega aceita! Dirija-se à loja para retirada.");
             }
             verificarPainelMotoboy();
+        }
+
+        async function retirar(idEntrega) {
+            const { error } = await db
+                .from('entregas')
+                .update({ status: 'retirada' })
+                .eq('id', idEntrega)
+                .eq('motoboy_id', motoboyLogadoId);
+
+            if (!error) {
+                alert("📦 Retirada confirmada! Rota atualizada para o cliente.");
+                verificarPainelMotoboy();
+            } else {
+                alert("Erro ao marcar retirada: " + error.message);
+            }
         }
 
         async function recusarEntregaAtual() {
@@ -448,7 +483,6 @@
                 listaRecusados.push(motoboyLogadoId);
             }
 
-            // Libera o pedido da minha tela e adiciona à lista de recusados para ir para o próximo da fila
             await db
                 .from('entregas')
                 .update({ 
