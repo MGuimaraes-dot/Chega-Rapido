@@ -1,8 +1,6 @@
 <!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EntreAqui - Painel Motoboy</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
@@ -51,10 +49,8 @@ input.codigo{letter-spacing:6px;font-weight:900;text-align:center;font-size:20px
 
 <button id="btnOnline" class="btn btn-green" onclick="alternarOnline()" style="margin-top:14px">🟢 Ficar Online</button>
 
-<!-- OFERTA DE COMBO -->
 <div id="areaCombo" style="display:none;margin-top:14px"></div>
 
-<!-- ENTREGAS ATIVAS -->
 <div id="areaAtiva" style="display:none">
   <h3 style="font-size:15px;margin-top:18px;color:#00a650">📦 Minhas Entregas em Andamento</h3>
   <div id="minhas"></div>
@@ -62,396 +58,400 @@ input.codigo{letter-spacing:6px;font-weight:900;text-align:center;font-size:20px
   <a id="btnGpsExterno" href="#" target="_blank" class="btn btn-gray" style="text-decoration:none;display:block;text-align:center;font-size:13px;padding:10px">🗺️ Abrir Navegação por Voz (Google Maps)</a>
 </div>
 
-<!-- FILA DE PEDIDOS -->
 <div id="areaFila">
   <h3 style="font-size:15px;margin-top:18px">🔔 Pedidos Disponíveis na Fila</h3>
   <div id="lista"><p style="font-size:13px;color:#666">Carregando fila...</p></div>
 </div>
 </div>
 
-<script>
-const motoData = getMotoboy(); if(!motoData) location.href='index.html';
-let motoId = motoData.id;
-let onlineAtual = false;
-let map = null, markerMotoboy = null, markerDestino = null, rotaLayer = null;
-let assinaturaRenderizada = '';
-let ultimoIdAlertado = null;
-let audioCtx = null;
+<script type="module">
+  import { supabaseClient, getMotoboy, calcularValoresFrete } from './supabase.js';
 
-document.getElementById('nomeMoto').innerText = motoData.nome_completo || motoData.nome || 'Motoboy';
-document.getElementById('cpfMoto').innerText = 'CPF: ' + motoData.cpf;
-document.getElementById('placaMoto').innerText = 'Placa: ' + (motoData.placa_moto || motoData.placa || 'N/A');
+  const motoData = getMotoboy(); 
+  if(!motoData) location.href = 'index.html';
+  
+  let motoId = motoData.id;
+  let onlineAtual = false;
+  let map = null, markerMotoboy = null, markerDestino = null, rotaLayer = null;
+  let assinaturaRenderizada = '';
+  let ultimoIdAlertado = null;
+  let audioCtx = null;
 
-function abrirConfig(abrir){
-  document.getElementById('modalConfig').style.display = abrir ? 'flex' : 'none';
-}
+  document.getElementById('nomeMoto').innerText = motoData.nome_completo || motoData.nome || 'Motoboy';
+  document.getElementById('cpfMoto').innerText = 'CPF: ' + motoData.cpf;
+  document.getElementById('placaMoto').innerText = 'Placa: ' + (motoData.placa_moto || motoData.placa || 'N/A');
 
-function desbloquearAudio(){
-  try{
-    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if(audioCtx.state === 'suspended') audioCtx.resume();
-  }catch(e){}
-}
+  window.abrirConfig = function(abrir) {
+    document.getElementById('modalConfig').style.display = abrir ? 'flex' : 'none';
+  };
 
-function dispararAlertaNovoPedido(){
-  try {
-    if(navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 600]);
-    desbloquearAudio();
-    if(!audioCtx) return;
-
-    const agora = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(660, agora);
-    osc.frequency.setValueAtTime(880, agora + 0.25);
-    osc.frequency.setValueAtTime(660, agora + 0.5);
-    osc.frequency.setValueAtTime(880, agora + 0.75);
-
-    gain.gain.setValueAtTime(0.5, agora);
-    gain.gain.exponentialRampToValueAtTime(0.01, agora + 1.0);
-
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start(agora);
-    osc.stop(agora + 1.0);
-  } catch(e){}
-}
-
-async function sincronizarEstadoInicial(){
-  try{
-    const {data} = await supabaseClient.from('motoboys').select('online, status, bloqueado').eq('id', motoId).maybeSingle();
-    if(data){
-      if(data.bloqueado || data.status==='bloqueado'){
-        alert('Sua conta foi bloqueada.');
-        localStorage.removeItem('motoboy');
-        location.href='index.html';
-        return;
-      }
-      onlineAtual = !!data.online;
-      atualizarBotaoOnlineVisual();
-    }
-  }catch(e){}
-}
-
-function atualizarBotaoOnlineVisual(){
-  const b = document.getElementById('btnOnline');
-  b.innerText = onlineAtual ? '🔴 Ficar Offline' : '🟢 Ficar Online';
-  b.style.background = onlineAtual ? '#fee2e2' : '#00a650';
-  b.style.color = onlineAtual ? '#991b1b' : '#fff';
-}
-
-function sair(){
-  supabaseClient.from('motoboys').update({online:false}).eq('id', motoId).then(()=>{
-    localStorage.removeItem('motoboy'); location.href='index.html';
-  });
-}
-
-async function alternarOnline(){
-  desbloquearAudio();
-  onlineAtual = !onlineAtual;
-  atualizarBotaoOnlineVisual(); // Atualiza visual na hora
-  try{
-    await supabaseClient.from('motoboys').update({online: onlineAtual}).eq('id', motoId);
-  }catch(e){}
-  if(onlineAtual && navigator.vibrate) navigator.vibrate(150);
-  carregar(true);
-}
-
-function enviarLocalizacaoGps(){
-  if(!onlineAtual || !navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition(async pos => {
+  function desbloquearAudio() {
     try{
-      await supabaseClient.from('motoboys').update({
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude
-      }).eq('id', motoId);
+      if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if(audioCtx.state === 'suspended') audioCtx.resume();
     }catch(e){}
-  }, ()=>{}, {enableHighAccuracy: true, timeout: 5000});
-}
-
-async function carregar(forcarRender = false){
-  enviarLocalizacaoGps();
-
-  let entregasAtivas = [];
-  try{
-    const {data: minhas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).in('status',['aceita','retirada']).order('created_at',{ascending:true});
-    entregasAtivas = minhas || [];
-  }catch(e){}
-
-  const areaAtiva = document.getElementById('areaAtiva');
-  const areaFila = document.getElementById('areaFila');
-  const areaCombo = document.getElementById('areaCombo');
-
-  if(entregasAtivas.length > 0){
-    areaAtiva.style.display = 'block';
-    areaFila.style.display = 'none';
-
-    const lojasAceitas = [...new Set(entregasAtivas.filter(e => e.status === 'aceita').map(e => e.loja_id))];
-    if(lojasAceitas.length > 0 && entregasAtivas.length < 3){
-      try{
-        const {data: combos} = await supabaseClient.from('entregas').select('*').eq('status','pendente').in('loja_id', lojasAceitas).order('created_at',{ascending:true});
-        const combosDisponiveis = (combos||[]).filter(c => !(c.recusados_por || []).includes(motoId));
-        
-        if(combosDisponiveis.length > 0){
-          const c = combosDisponiveis[0];
-          areaCombo.style.display = 'block';
-          areaCombo.innerHTML = `
-            <div class="item item-combo">
-              <b style="color:#ff5a00">🔥 ROTA DUPLA (COMBO) DISPONÍVEL!</b><br>
-              Loja: <b>${c.loja_nome}</b> | Cliente: ${c.cliente_nome}<br>
-              Ganho Extra: <b style="color:#00a650">+R$ 5,00</b><br>
-              <button class="btn btn-orange" style="padding:10px;margin-top:8px" onclick="aceitarCombo('${c.id}')">⚡ Aceitar Combo</button>
-            </div>`;
-        } else { areaCombo.style.display = 'none'; }
-      }catch(e){ areaCombo.style.display = 'none'; }
-    } else { areaCombo.style.display = 'none'; }
-
-    const novaAssinatura = entregasAtivas.map(e => `${e.id}:${e.status}:${e.chegou_no_local}`).join('|');
-
-    if(forcarRender || assinaturaRenderizada !== novaAssinatura){
-      assinaturaRenderizada = novaAssinatura;
-
-      document.getElementById('minhas').innerHTML = entregasAtivas.map((e, idx) => `
-        <div class="item item-aceita">
-          <div style="display:flex;justify-content:space-between">
-            <b>#${idx+1} - ${e.cliente_nome}</b>
-            <b style="color:#00a650">R$ ${(e.valor_motoboy||0).toFixed(2)}</b>
-          </div>
-          📦 <b>Loja:</b> ${e.loja_nome}<br>
-          📍 <b>Retirar em:</b> ${e.endereco_retirada || 'Ver na loja'}<br>
-          🏠 <b>Entregar em:</b> ${e.endereco} - ${e.bairro||''} (${e.cidade||''})<br>
-          
-          ${e.status==='aceita' ? `
-            <hr style="border:0;border-top:1px solid #bbf7d0;margin:10px 0">
-            <label><b>🔑 PIN de Retirada (Balcão da loja):</b></label>
-            <input class="codigo" id="pinRetirada-${e.id}" placeholder="0000" maxlength="4" inputmode="numeric">
-            <button class="btn btn-orange" onclick="confirmarRetirada('${e.id}')">📦 Confirmar Retirada</button>
-          ` : `
-            <hr style="border:0;border-top:1px solid #bbf7d0;margin:10px 0">
-            ${!e.chegou_no_local ? `
-              <button class="btn btn-green" style="margin-bottom:8px" onclick="avisarChegada('${e.id}')">🔔 Cheguei no Local (Avisar Cliente)</button>
-            ` : `
-              <p style="color:#00a650;font-weight:800;font-size:13px;margin:4px 0">✅ Cliente avisado!</p>
-            `}
-            <label><b>🔑 PIN de Entrega (Cliente):</b></label>
-            <input class="codigo" id="pin-${e.id}" placeholder="0000" maxlength="4" inputmode="numeric">
-            <button class="btn btn-blue" onclick="finalizar('${e.id}')">✅ Finalizar Entrega</button>
-          `}
-        </div>`).join('');
-
-      tracarRotaAutomatica(entregasAtivas[0]);
-    }
-    return;
-  } else {
-    assinaturaRenderizada = '';
-    areaAtiva.style.display = 'none';
-    areaCombo.style.display = 'none';
-    areaFila.style.display = 'block';
   }
 
-  const listaDiv = document.getElementById('lista');
-  if(!onlineAtual){
-    listaDiv.innerHTML = '<p style="font-size:13px;color:#666">Você está offline. Ligue o botão acima para receber corridas.</p>';
-    atualizarExtrato();
-    return;
+  function dispararAlertaNovoPedido() {
+    try {
+      if(navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 600]);
+      desbloquearAudio();
+      if(!audioCtx) return;
+
+      const agora = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(660, agora);
+      osc.frequency.setValueAtTime(880, agora + 0.25);
+      osc.frequency.setValueAtTime(660, agora + 0.5);
+      osc.frequency.setValueAtTime(880, agora + 0.75);
+
+      gain.gain.setValueAtTime(0.5, agora);
+      gain.gain.exponentialRampToValueAtTime(0.01, agora + 1.0);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(agora);
+      osc.stop(agora + 1.0);
+    } catch(e){}
   }
 
-  try{
-    const {data: pendentes} = await supabaseClient.from('entregas').select('*').eq('status','pendente').order('created_at',{ascending:true});
-    const filtrados = (pendentes||[]).filter(e => !(e.recusados_por || []).includes(motoId));
-
-    if(filtrados.length > 0){
-      const primeiroId = filtrados[0].id;
-      if(ultimoIdAlertado !== primeiroId){
-        ultimoIdAlertado = primeiroId;
-        dispararAlertaNovoPedido();
+  async function sincronizarEstadoInicial() {
+    try{
+      const {data} = await supabaseClient.from('motoboys').select('online, status, bloqueado').eq('id', motoId).maybeSingle();
+      if(data){
+        if(data.bloqueado || data.status === 'bloqueado'){
+          alert('Sua conta foi bloqueada.');
+          localStorage.removeItem('motoboy');
+          location.href = 'index.html';
+          return;
+        }
+        onlineAtual = !!data.online;
+        atualizarBotaoOnlineVisual();
       }
+    }catch(e){}
+  }
+
+  function atualizarBotaoOnlineVisual() {
+    const b = document.getElementById('btnOnline');
+    b.innerText = onlineAtual ? '🔴 Ficar Offline' : '🟢 Ficar Online';
+    b.style.background = onlineAtual ? '#fee2e2' : '#00a650';
+    b.style.color = onlineAtual ? '#991b1b' : '#fff';
+  }
+
+  window.sair = function() {
+    supabaseClient.from('motoboys').update({online:false}).eq('id', motoId).then(()=>{
+      localStorage.removeItem('motoboy'); 
+      location.href = 'index.html';
+    });
+  };
+
+  window.alternarOnline = async function() {
+    desbloquearAudio();
+    onlineAtual = !onlineAtual;
+    atualizarBotaoOnlineVisual();
+    try{
+      await supabaseClient.from('motoboys').update({online: onlineAtual}).eq('id', motoId);
+    }catch(e){}
+    if(onlineAtual && navigator.vibrate) navigator.vibrate(150);
+    carregar(true);
+  };
+
+  function enviarLocalizacaoGps() {
+    if(!onlineAtual || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(async pos => {
+      try{
+        await supabaseClient.from('motoboys').update({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        }).eq('id', motoId);
+      }catch(e){}
+    }, ()=>{}, {enableHighAccuracy: true, timeout: 5000});
+  }
+
+  async function carregar(forcarRender = false) {
+    enviarLocalizacaoGps();
+
+    let entregasAtivas = [];
+    try{
+      const {data: minhas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).in('status',['aceita','retirada']).order('created_at',{ascending:true});
+      entregasAtivas = minhas || [];
+    }catch(e){}
+
+    const areaAtiva = document.getElementById('areaAtiva');
+    const areaFila = document.getElementById('areaFila');
+    const areaCombo = document.getElementById('areaCombo');
+
+    if(entregasAtivas.length > 0){
+      areaAtiva.style.display = 'block';
+      areaFila.style.display = 'none';
+
+      const lojasAceitas = [...new Set(entregasAtivas.filter(e => e.status === 'aceita').map(e => e.loja_id))];
+      if(lojasAceitas.length > 0 && entregasAtivas.length < 3){
+        try{
+          const {data: combos} = await supabaseClient.from('entregas').select('*').eq('status','pendente').in('loja_id', lojasAceitas).order('created_at',{ascending:true});
+          const combosDisponiveis = (combos||[]).filter(c => !(c.recusados_por || []).includes(motoId));
+          
+          if(combosDisponiveis.length > 0){
+            const c = combosDisponiveis[0];
+            areaCombo.style.display = 'block';
+            areaCombo.innerHTML = `
+              <div class="item item-combo">
+                <b style="color:#ff5a00">🔥 ROTA DUPLA (COMBO) DISPONÍVEL!</b><br>
+                Loja: <b>${c.loja_nome}</b> | Cliente: ${c.cliente_nome}<br>
+                Ganho Extra: <b style="color:#00a650">+R$ 5,00</b><br>
+                <button class="btn btn-orange" style="padding:10px;margin-top:8px" onclick="aceitarCombo('${c.id}')">⚡ Aceitar Combo</button>
+              </div>`;
+          } else { areaCombo.style.display = 'none'; }
+        }catch(e){ areaCombo.style.display = 'none'; }
+      } else { areaCombo.style.display = 'none'; }
+
+      const novaAssinatura = entregasAtivas.map(e => `${e.id}:${e.status}:${e.chegou_no_local}`).join('|');
+
+      if(forcarRender || assinaturaRenderizada !== novaAssinatura){
+        assinaturaRenderizada = novaAssinatura;
+
+        document.getElementById('minhas').innerHTML = entregasAtivas.map((e, idx) => `
+          <div class="item item-aceita">
+            <div style="display:flex;justify-content:space-between">
+              <b>#${idx+1} - ${e.cliente_nome}</b>
+              <b style="color:#00a650">R$ ${(e.valor_motoboy||0).toFixed(2)}</b>
+            </div>
+            📦 <b>Loja:</b> ${e.loja_nome}<br>
+            📍 <b>Retirar em:</b> ${e.endereco_retirada || 'Ver na loja'}<br>
+            🏠 <b>Entregar em:</b> ${e.endereco} - ${e.bairro||''} (${e.cidade||''})<br>
+            
+            ${e.status==='aceita' ? `
+              <hr style="border:0;border-top:1px solid #bbf7d0;margin:10px 0">
+              <label><b>🔑 PIN de Retirada (Balcão da loja):</b></label>
+              <input class="codigo" id="pinRetirada-${e.id}" placeholder="0000" maxlength="4" inputmode="numeric">
+              <button class="btn btn-orange" onclick="confirmarRetirada('${e.id}')">📦 Confirmar Retirada</button>
+            ` : `
+              <hr style="border:0;border-top:1px solid #bbf7d0;margin:10px 0">
+              ${!e.chegou_no_local ? `
+                <button class="btn btn-green" style="margin-bottom:8px" onclick="avisarChegada('${e.id}')">🔔 Cheguei no Local (Avisar Cliente)</button>
+              ` : `
+                <p style="color:#00a650;font-weight:800;font-size:13px;margin:4px 0">✅ Cliente avisado!</p>
+              `}
+              <label><b>🔑 PIN de Entrega (Cliente):</b></label>
+              <input class="codigo" id="pin-${e.id}" placeholder="0000" maxlength="4" inputmode="numeric">
+              <button class="btn btn-blue" onclick="finalizar('${e.id}')">✅ Finalizar Entrega</button>
+            `}
+          </div>`).join('');
+
+        tracarRotaAutomatica(entregasAtivas[0]);
+      }
+      return;
     } else {
-      ultimoIdAlertado = null;
+      assinaturaRenderizada = '';
+      areaAtiva.style.display = 'none';
+      areaCombo.style.display = 'none';
+      areaFila.style.display = 'block';
     }
 
-    listaDiv.innerHTML = filtrados.map(e=>`
-      <div class="item"><b>${e.cliente_nome}</b> - Ganho: <b style="color:#00a650;font-size:16px">R$ ${(e.valor_motoboy||0).toFixed(2)}</b><br>
-      📦 Loja: ${e.loja_nome}<br>
-      🏠 Destino: ${e.endereco} - ${e.cidade||''}<br>
-      📏 ${e.distancia_km||'?'} km ${e.chovendo?'(🌧️ +R$ 2) ':''}${e.horario_pico?'(🔥 +R$ 2) ':''}<br>
-      <div class="row-botoes">
-        <button class="btn btn-green" style="margin-top:8px;flex:2" onclick="aceitar('${e.id}')">✅ Aceitar</button>
-        <button class="btn btn-red" style="margin-top:8px;flex:1" onclick="recusar('${e.id}')">❌ Recusar</button>
-      </div></div>`).join('')||'<p style="font-size:13px;color:#666">Aguardando novos pedidos na praça...</p>';
-  }catch(e){
-    listaDiv.innerHTML = '<p style="font-size:13px;color:#666">Aguardando novos pedidos...</p>';
+    const listaDiv = document.getElementById('lista');
+    if(!onlineAtual){
+      listaDiv.innerHTML = '<p style="font-size:13px;color:#666">Você está offline. Ligue o botão acima para receber corridas.</p>';
+      atualizarExtrato();
+      return;
+    }
+
+    try{
+      const {data: pendentes} = await supabaseClient.from('entregas').select('*').eq('status','pendente').order('created_at',{ascending:true});
+      const filtrados = (pendentes||[]).filter(e => !(e.recusados_por || []).includes(motoId));
+
+      if(filtrados.length > 0){
+        const primeiroId = filtrados[0].id;
+        if(ultimoIdAlertado !== primeiroId){
+          ultimoIdAlertado = primeiroId;
+          dispararAlertaNovoPedido();
+        }
+      } else {
+        ultimoIdAlertado = null;
+      }
+
+      listaDiv.innerHTML = filtrados.map(e => `
+        <div class="item"><b>${e.cliente_nome}</b> - Ganho: <b style="color:#00a650;font-size:16px">R$ ${(e.valor_motoboy||0).toFixed(2)}</b><br>
+        📦 Loja: ${e.loja_nome}<br>
+        🏠 Destino: ${e.endereco} - ${e.cidade||''}<br>
+        📏 ${e.distancia_km||'?'} km ${e.chovendo?'(🌧️ +R$ 2) ':''}${e.horario_pico?'(🔥 +R$ 2) ':''}<br>
+        <div class="row-botoes">
+          <button class="btn btn-green" style="margin-top:8px;flex:2" onclick="aceitar('${e.id}')">✅ Aceitar</button>
+          <button class="btn btn-red" style="margin-top:8px;flex:1" onclick="recusar('${e.id}')">❌ Recusar</button>
+        </div></div>`).join('') || '<p style="font-size:13px;color:#666">Aguardando novos pedidos na praça...</p>';
+    }catch(e){
+      listaDiv.innerHTML = '<p style="font-size:13px;color:#666">Aguardando novos pedidos...</p>';
+    }
+
+    atualizarExtrato();
   }
 
-  atualizarExtrato();
-}
+  async function tracarRotaAutomatica(entrega) {
+    const mapaDiv = document.getElementById('map');
+    mapaDiv.style.display = 'block';
 
-async function tracarRotaAutomatica(entrega){
-  const mapaDiv = document.getElementById('map');
-  mapaDiv.style.display = 'block';
+    if(!map){
+      map = L.map('map').setView([-20.45, -50.55], 14);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    }
+    setTimeout(() => map.invalidateSize(), 200);
 
-  if(!map){
-    map = L.map('map').setView([-20.45, -50.55], 14);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-  }
-  setTimeout(() => map.invalidateSize(), 200);
+    const enderecoAlvo = entrega.status === 'aceita' 
+      ? `${entrega.endereco_retirada || ''}, ${entrega.cidade || ''}, Brasil`
+      : `${entrega.endereco || ''}, ${entrega.cidade || ''}, Brasil`;
 
-  const enderecoAlvo = entrega.status === 'aceita' 
-    ? `${entrega.endereco_retirada || ''}, ${entrega.cidade || ''}, Brasil`
-    : `${entrega.endereco || ''}, ${entrega.cidade || ''}, Brasil`;
+    document.getElementById('btnGpsExterno').href = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(enderecoAlvo)}&travelmode=driving`;
 
-  document.getElementById('btnGpsExterno').href = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(enderecoAlvo)}&travelmode=driving`;
+    let destLat = null, destLng = null;
+    try{
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(enderecoAlvo)}`);
+      const d = await r.json();
+      if(d && d[0]){ destLat = parseFloat(d[0].lat); destLng = parseFloat(d[0].lon); }
+    }catch(e){}
 
-  let destLat = null, destLng = null;
-  try{
-    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(enderecoAlvo)}`);
-    const d = await r.json();
-    if(d && d[0]){ destLat = parseFloat(d[0].lat); destLng = parseFloat(d[0].lon); }
-  }catch(e){}
-
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(async pos => {
-      const lat = pos.coords.latitude, lng = pos.coords.longitude;
-      const motoIcon = L.divIcon({
-        html: '<div style="font-size:24px;background:#fff;border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4)">🛵</div>',
-        className: 'custom-moto-icon', iconSize: [38, 38], iconAnchor: [19, 19]
-      });
-
-      if(markerMotoboy) map.removeLayer(markerMotoboy);
-      markerMotoboy = L.marker([lat, lng], {icon: motoIcon}).addTo(map);
-
-      if(destLat && destLng){
-        const destIcon = L.divIcon({
-          html: `<div style="font-size:22px;background:#ff5a00;color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4)">${entrega.status==='aceita'?'🏪':'🏠'}</div>`,
-          className: 'custom-dest-icon', iconSize: [34, 34], iconAnchor: [17, 17]
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        const motoIcon = L.divIcon({
+          html: '<div style="font-size:24px;background:#fff;border-radius:50%;width:38px;height:38px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4)">🛵</div>',
+          className: 'custom-moto-icon', iconSize: [38, 38], iconAnchor: [19, 19]
         });
 
-        if(markerDestino) map.removeLayer(markerDestino);
-        markerDestino = L.marker([destLat, destLng], {icon: destIcon}).addTo(map);
+        if(markerMotoboy) map.removeLayer(markerMotoboy);
+        markerMotoboy = L.marker([lat, lng], {icon: motoIcon}).addTo(map);
 
-        try{
-          const osrm = await fetch(`https://router.project-osrm.org/route/v1/driving/${lng},${lat};${destLng},${destLat}?overview=full&geometries=geojson`);
-          const rotaData = await osrm.json();
-          if(rotaData.routes && rotaData.routes[0]){
-            if(rotaLayer) map.removeLayer(rotaLayer);
-            rotaLayer = L.geoJSON(rotaData.routes[0].geometry, { style: { color: '#1976d2', weight: 5, opacity: 0.85 } }).addTo(map);
-            map.fitBounds(rotaLayer.getBounds(), { padding: [30, 30] });
-            return;
-          }
-        }catch(e){}
-      }
-      map.setView([lat, lng], 15);
-    });
+        if(destLat && destLng){
+          const destIcon = L.divIcon({
+            html: `<div style="font-size:22px;background:#ff5a00;color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4)">${entrega.status==='aceita'?'🏪':'🏠'}</div>`,
+            className: 'custom-dest-icon', iconSize: [34, 34], iconAnchor: [17, 17]
+          });
+
+          if(markerDestino) map.removeLayer(markerDestino);
+          markerDestino = L.marker([destLat, destLng], {icon: destIcon}).addTo(map);
+
+          try{
+            const osrm = await fetch(`https://router.project-osrm.org/route/v1/driving/${lng},${lat};${destLng},${destLat}?overview=full&geometries=geojson`);
+            const rotaData = await osrm.json();
+            if(rotaData.routes && rotaData.routes[0]){
+              if(rotaLayer) map.removeLayer(rotaLayer);
+              rotaLayer = L.geoJSON(rotaData.routes[0].geometry, { style: { color: '#1976d2', weight: 5, opacity: 0.85 } }).addTo(map);
+              map.fitBounds(rotaLayer.getBounds(), { padding: [30, 30] });
+              return;
+            }
+          }catch(e){}
+        }
+        map.setView([lat, lng], 15);
+      });
+    }
   }
-}
 
-async function atualizarExtrato(){
-  try{
-    const {data: entregues} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).eq('status','entregue');
-    let saldoReceber = 0, totalHistorico = 0, qtdAberto = 0;
+  async function atualizarExtrato() {
+    try{
+      const {data: entregues} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).eq('status','entregue');
+      let saldoReceber = 0, totalHistorico = 0, qtdAberto = 0;
 
-    (entregues||[]).forEach(e => {
-      const val = Number(e.valor_motoboy || 0);
-      totalHistorico += val;
-      if(!e.pago_motoboy){ saldoReceber += val; qtdAberto++; }
-    });
+      (entregues||[]).forEach(e => {
+        const val = Number(e.valor_motoboy || 0);
+        totalHistorico += val;
+        if(!e.pago_motoboy){ saldoReceber += val; qtdAberto++; }
+      });
 
-    document.getElementById('extratoMoto').innerHTML = `
-      <b>Saldo a Receber (${qtdAberto} entregas):</b> <span style="color:#00a650;font-size:15px">R$ ${saldoReceber.toFixed(2)}</span><br>
-      <b>Total Geral Acumulado:</b> R$ ${totalHistorico.toFixed(2)}<br>
-      <small style="color:#666">Chave Pix: ${motoData.chave_pix || 'Não cadastrada'}</small>
-    `;
-  }catch(e){}
-}
+      document.getElementById('extratoMoto').innerHTML = `
+        <b>Saldo a Receber (${qtdAberto} entregas):</b> <span style="color:#00a650;font-size:15px">R$ ${saldoReceber.toFixed(2)}</span><br>
+        <b>Total Geral Acumulado:</b> R$ ${totalHistorico.toFixed(2)}<br>
+        <small style="color:#666">Chave Pix: ${motoData.chave_pix || 'Não cadastrada'}</small>
+      `;
+    }catch(e){}
+  }
 
-async function aceitar(id){
-  desbloquearAudio();
-  const {data, error} = await supabaseClient.from('entregas').update({
-    status: 'aceita', 
-    motoboy_id: motoId, 
-    motoboy_nome: motoData.nome_completo || motoData.nome,
-    motoboy_placa: motoData.placa_moto || motoData.placa,
-    aceita_em: new Date().toISOString()
-  }).eq('id', id).eq('status','pendente').select().maybeSingle();
+  window.aceitar = async function(id) {
+    desbloquearAudio();
+    const {data, error} = await supabaseClient.from('entregas').update({
+      status: 'aceita', 
+      motoboy_id: motoId, 
+      motoboy_nome: motoData.nome_completo || motoData.nome,
+      motoboy_placa: motoData.placa_moto || motoData.placa,
+      aceita_em: new Date().toISOString()
+    }).eq('id', id).eq('status','pendente').select().maybeSingle();
 
-  if(error || !data) return alert('Esta corrida já foi aceita por outro motoboy.');
-  await supabaseClient.from('motoboys').update({total_aceitas: (motoData.total_aceitas || 0) + 1}).eq('id', motoId);
-  carregar(true);
-}
+    if(error || !data) return alert('Esta corrida já foi aceita por outro motoboy.');
+    await supabaseClient.from('motoboys').update({total_aceitas: (motoData.total_aceitas || 0) + 1}).eq('id', motoId);
+    carregar(true);
+  };
 
-async function aceitarCombo(id){
-  desbloquearAudio();
-  const valoresCombo = calcularValoresFrete(3, false, false, true);
-  const {data, error} = await supabaseClient.from('entregas').update({
-    status: 'aceita', 
-    motoboy_id: motoId, 
-    motoboy_nome: motoData.nome_completo || motoData.nome,
-    motoboy_placa: motoData.placa_moto || motoData.placa,
-    valor_motoboy: valoresCombo.valorMotoboy,
-    valor_frete_loja: valoresCombo.valorLoja,
-    eh_combo: true,
-    aceita_em: new Date().toISOString()
-  }).eq('id', id).eq('status','pendente').select().maybeSingle();
+  window.aceitarCombo = async function(id) {
+    desbloquearAudio();
+    const valoresCombo = calcularValoresFrete(3, false, false, true);
+    const {data, error} = await supabaseClient.from('entregas').update({
+      status: 'aceita', 
+      motoboy_id: motoId, 
+      motoboy_nome: motoData.nome_completo || motoData.nome,
+      motoboy_placa: motoData.placa_moto || motoData.placa,
+      valor_motoboy: valoresCombo.valorMotoboy,
+      valor_frete_loja: valoresCombo.valorLoja,
+      eh_combo: true,
+      aceita_em: new Date().toISOString()
+    }).eq('id', id).eq('status','pendente').select().maybeSingle();
 
-  if(error || !data) return alert('Este combo já foi pego.');
-  await supabaseClient.from('motoboys').update({total_aceitas: (motoData.total_aceitas || 0) + 1}).eq('id', motoId);
-  alert('⚡ Combo adicionado!');
-  carregar(true);
-}
+    if(error || !data) return alert('Este combo já foi pego.');
+    await supabaseClient.from('motoboys').update({total_aceitas: (motoData.total_aceitas || 0) + 1}).eq('id', motoId);
+    alert('⚡ Combo adicionado!');
+    carregar(true);
+  };
 
-async function recusar(id){
-  desbloquearAudio();
-  const {data: ent} = await supabaseClient.from('entregas').select('recusados_por').eq('id', id).maybeSingle();
-  const lista = ent?.recusados_por || [];
-  if(!lista.includes(motoId)) lista.push(motoId);
+  window.recusar = async function(id) {
+    desbloquearAudio();
+    const {data: ent} = await supabaseClient.from('entregas').select('recusados_por').eq('id', id).maybeSingle();
+    const lista = ent?.recusados_por || [];
+    if(!lista.includes(motoId)) lista.push(motoId);
 
-  await supabaseClient.from('entregas').update({recusados_por: lista}).eq('id', id);
-  ultimoIdAlertado = null;
-  carregar(true);
-}
+    await supabaseClient.from('entregas').update({recusados_por: lista}).eq('id', id);
+    ultimoIdAlertado = null;
+    carregar(true);
+  };
 
-async function confirmarRetirada(id){
-  const pinInput = document.getElementById('pinRetirada-'+id).value.trim();
-  if(!pinInput || pinInput.length !== 4) return alert('Digite o PIN de 4 dígitos da loja.');
-  
-  const {data} = await supabaseClient.from('entregas').select('codigo_retirada').eq('id', id).maybeSingle();
-  if(!data || pinInput !== data.codigo_retirada) return alert('❌ PIN de retirada incorreto!');
+  window.confirmarRetirada = async function(id) {
+    const pinInput = document.getElementById('pinRetirada-'+id).value.trim();
+    if(!pinInput || pinInput.length !== 4) return alert('Digite o PIN de 4 dígitos da loja.');
+    
+    const {data} = await supabaseClient.from('entregas').select('codigo_retirada').eq('id', id).maybeSingle();
+    if(!data || pinInput !== data.codigo_retirada) return alert('❌ PIN de retirada incorreto!');
 
-  await supabaseClient.from('entregas').update({status: 'retirada', retirada_confirmada: true, coletada_em: new Date().toISOString()}).eq('id', id);
-  carregar(true);
-}
+    await supabaseClient.from('entregas').update({status: 'retirada', retirada_confirmada: true, coletada_em: new Date().toISOString()}).eq('id', id);
+    carregar(true);
+  };
 
-async function avisarChegada(id){
-  await supabaseClient.from('entregas').update({chegou_no_local: true}).eq('id', id);
-  carregar(true);
-}
+  window.avisarChegada = async function(id) {
+    await supabaseClient.from('entregas').update({chegou_no_local: true}).eq('id', id);
+    carregar(true);
+  };
 
-async function finalizar(id){
-  const pin = document.getElementById('pin-'+id).value.trim();
-  if(!pin || pin.length!==4) return alert('Digite o PIN de 4 dígitos do cliente');
-  
-  const {data} = await supabaseClient.from('entregas').select('codigo_entrega').eq('id',id).maybeSingle();
-  if(!data || pin !== data.codigo_entrega) return alert('❌ PIN do cliente incorreto!');
-  
-  await supabaseClient.from('entregas').update({status:'entregue', entregue_em: new Date().toISOString(), codigo_confirmado:true}).eq('id',id);
-  alert('✅ Entrega finalizada com sucesso!');
-  carregar(true);
-}
+  window.finalizar = async function(id) {
+    const pin = document.getElementById('pin-'+id).value.trim();
+    if(!pin || pin.length !== 4) return alert('Digite o PIN de 4 dígitos do cliente');
+    
+    const {data} = await supabaseClient.from('entregas').select('codigo_entrega').eq('id',id).maybeSingle();
+    if(!data || pin !== data.codigo_entrega) return alert('❌ PIN do cliente incorreto!');
+    
+    await supabaseClient.from('entregas').update({status:'entregue', entregue_em: new Date().toISOString(), codigo_confirmado:true}).eq('id',id);
+    alert('✅ Entrega finalizada com sucesso!');
+    carregar(true);
+  };
 
-async function salvarSenhaMoto(){
-  const nova = document.getElementById('novaSenhaMoto').value;
-  if(!nova || nova.length<4) return alert('Senha inválida');
-  const {error} = await supabaseClient.from('motoboys').update({senha: nova}).eq('id', motoId);
-  if(error) return alert('Erro: '+error.message);
-  alert('Senha alterada com sucesso!');
-  document.getElementById('novaSenhaMoto').value='';
-}
+  window.salvarSenhaMoto = async function() {
+    const nova = document.getElementById('novaSenhaMoto').value;
+    if(!nova || nova.length < 4) return alert('Senha inválida');
+    const {error} = await supabaseClient.from('motoboys').update({senha: nova}).eq('id', motoId);
+    if(error) return alert('Erro: '+error.message);
+    alert('Senha alterada com sucesso!');
+    document.getElementById('novaSenhaMoto').value='';
+  };
 
-sincronizarEstadoInicial().then(() => carregar(true));
+  sincronizarEstadoInicial().then(() => carregar(true));
 
-setInterval(()=>{ 
-  if(onlineAtual) carregar(false); 
-}, 6000);
+  setInterval(() => { 
+    if(onlineAtual) carregar(false); 
+  }, 6000);
 </script>
 </body></html>
