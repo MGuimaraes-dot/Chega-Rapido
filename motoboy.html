@@ -66,7 +66,7 @@
         <p id="nome-motoboy">Carregando dados do motoboy...</p>
     </div>
 
-    <!-- SINAL DE GPS CONDICIONAL (Só aparece se houver entrega ativa ou oferta para ESTE motoboy) -->
+    <!-- SINAL DE GPS CONDICIONAL -->
     <div id="sinal-gps">
         📍 GPS Ativo: Rastreando rota da entrega...
     </div>
@@ -96,31 +96,27 @@
 
     <script>
         // ==========================================
-        // CONFIGURAÇÃO DO SUPABASE (Credenciais Reais)
+        // CONFIGURAÇÃO DO SUPABASE (Variável 'db')
         // ==========================================
         const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
         const SUPABASE_ANON_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Usamos 'db' para evitar o conflito de nome com o CDN do Supabase
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // ⚠️ COMO OBTER O ID DO MOTOBOY LOGADO DINAMICAMENTE:
-        // No seu sistema de login, você deve salvar o ID (UUID) ou o CPF do motoboy no localStorage.
-        // Exemplo: localStorage.setItem('motoboy_cpf', '38517013808');
-        // Se não houver nenhum salvo, pegamos um padrão ou exigimos o login.
         const cpfMotoboyLogado = localStorage.getItem('motoboy_cpf') || "38517013808"; 
         let motoboyLogadoId = null;
 
         let entregaOfertaId = null;
         let timerInterval = null;
 
-        // Inicializa o painel ao carregar a página
         window.onload = async () => {
             await carregarDadosMotoboy();
+            
             if (motoboyLogadoId) {
                 verificarPainelMotoboy();
 
-                // Escuta alterações em tempo real na tabela 'entregas'
-                supabase
-                  .channel('public:entregas')
+                db.channel('public:entregas')
                   .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas' }, () => {
                       verificarPainelMotoboy();
                   })
@@ -128,25 +124,33 @@
             }
         };
 
-        // Busca dinamicamente os dados do motoboy logado com base no cadastro ativo
         async function carregarDadosMotoboy() {
-            const { data, error } = await supabase
-                .from('motoboys')
-                .select('id, nome_completo, nome, cpf, placa')
-                .eq('cpf', cpfMotoboyLogado)
-                .single();
+            try {
+                const { data, error } = await db
+                    .from('motoboys')
+                    .select('id, nome_completo, nome, cpf, placa')
+                    .eq('cpf', cpfMotoboyLogado)
+                    .limit(1);
 
-            if (data) {
-                motoboyLogadoId = data.id; // UUID real salvo no banco para este cadastro
-                const nomeExibir = data.nome_completo || data.nome || "Motoboy";
-                document.getElementById('nome-motoboy').innerText = `${nomeExibir} | CPF: ${data.cpf} | Placa: ${data.placa || 'N/A'}`;
-            } else {
-                document.getElementById('nome-motoboy').innerText = "Erro: Motoboy não identificado no cadastro.";
-                alert("Sessão não encontrada ou CPF inválido. Faça login novamente.");
+                if (error) {
+                    console.error("Erro do Supabase:", error);
+                    document.getElementById('nome-motoboy').innerText = "Erro ao carregar dados (Verifique RLS)";
+                    return;
+                }
+
+                if (data && data.length > 0) {
+                    const motoboy = data[0];
+                    motoboyLogadoId = motoboy.id;
+                    const nomeExibir = motoboy.nome_completo || motoboy.nome || "Motoboy";
+                    document.getElementById('nome-motoboy').innerText = `${nomeExibir} | CPF: ${motoboy.cpf} | Placa: ${motoboy.placa || 'N/A'}`;
+                } else {
+                    document.getElementById('nome-motoboy').innerText = "Aviso: CPF do motoboy não encontrado na base.";
+                }
+            } catch (err) {
+                console.error("Erro crítico:", err);
             }
         }
 
-        // Função central que verifica ofertas e entregas em andamento do motoboy autenticado
         async function verificarPainelMotoboy() {
             if (!motoboyLogadoId) return;
 
@@ -154,63 +158,65 @@
             const sinalGps = document.getElementById('sinal-gps');
             const containerAndamento = document.getElementById('lista-entregas-andamento');
 
-            // 1. Busca ofertas pendentes direcionadas EXATAMENTE para o ID deste motoboy (Fila de 20s)
-            const { data: ofertas } = await supabase
-                .from('entregas')
-                .select('*')
-                .eq('motoboy_atual_id', motoboyLogadoId)
-                .eq('status', 'pendente');
+            try {
+                // 1. Busca ofertas pendentes direcionadas para este motoboy
+                const { data: ofertas } = await db
+                    .from('entregas')
+                    .select('*')
+                    .eq('motoboy_atual_id', motoboyLogadoId)
+                    .eq('status', 'pendente');
 
-            if (ofertas && ofertas.length > 0) {
-                let oferta = ofertas[0];
-                entregaOfertaId = oferta.id;
+                if (ofertas && ofertas.length > 0) {
+                    let oferta = ofertas[0];
+                    entregaOfertaId = oferta.id;
 
-                document.getElementById('lbl-loja').innerText = oferta.loja_nome || "Loja Parceira";
-                document.getElementById('lbl-retirada').innerText = oferta.endereco_retirada || "-";
-                document.getElementById('lbl-destino').innerText = oferta.endereco_entrega || "-";
+                    document.getElementById('lbl-loja').innerText = oferta.loja_nome || "Loja Parceira";
+                    document.getElementById('lbl-retirada').innerText = oferta.endereco_retirada || "-";
+                    document.getElementById('lbl-destino').innerText = oferta.endereco_entrega || "-";
 
-                cardOferta.style.display = 'block';
-                sinalGps.style.display = 'block'; // Mostra o GPS apenas para ele nesta oferta
-                iniciarContador20s();
-            } else {
-                cardOferta.style.display = 'none';
-                entregaOfertaId = null;
-                clearInterval(timerInterval);
-            }
-
-            // 2. Busca entregas 'em_andamento' vinculadas exclusivamente a este motoboy
-            const { data: andamentos } = await supabase
-                .from('entregas')
-                .select('*')
-                .eq('motoboy_id', motoboyLogadoId)
-                .eq('status', 'em_andamento');
-
-            if (andamentos && andamentos.length > 0) {
-                sinalGps.style.display = 'block'; // Mostra o GPS se ele tiver entregas ativas
-                let htmlAndamento = '';
-                
-                andamentos.forEach((ent, index) => {
-                    htmlAndamento += `
-                        <div style="border-left: 4px solid #28a745; padding-left: 10px; margin-bottom: 10px;">
-                            <p><strong>#${index + 1} - ${ent.cliente_nome || ent.nome_cliente || 'Cliente'}</strong></p>
-                            <p>📍 Retirar em: ${ent.endereco_retirada}</p>
-                            <p>🎯 Entregar em: ${ent.endereco_entrega}</p>
-                            <button class="btn btn-success" onclick="finalizarEntrega('${ent.id}')">Finalizar Entrega</button>
-                        </div>
-                        <hr>
-                    `;
-                });
-                containerAndamento.innerHTML = htmlAndamento;
-            } else {
-                containerAndamento.innerHTML = `<p style="color: #777;">Nenhuma entrega em andamento no momento.</p>`;
-                // Se não tem oferta nem andamento, esconde o sinal de GPS completamente
-                if (!ofertas || ofertas.length === 0) {
-                    sinalGps.style.display = 'none';
+                    cardOferta.style.display = 'block';
+                    sinalGps.style.display = 'block';
+                    iniciarContador20s();
+                } else {
+                    cardOferta.style.display = 'none';
+                    entregaOfertaId = null;
+                    clearInterval(timerInterval);
                 }
+
+                // 2. Busca entregas em andamento do motoboy
+                const { data: andamentos } = await db
+                    .from('entregas')
+                    .select('*')
+                    .eq('motoboy_id', motoboyLogadoId)
+                    .eq('status', 'em_andamento');
+
+                if (andamentos && andamentos.length > 0) {
+                    sinalGps.style.display = 'block';
+                    let htmlAndamento = '';
+                    
+                    andamentos.forEach((ent, index) => {
+                        htmlAndamento += `
+                            <div style="border-left: 4px solid #28a745; padding-left: 10px; margin-bottom: 10px;">
+                                <p><strong>#${index + 1} - ${ent.cliente_nome || ent.nome_cliente || 'Cliente'}</strong></p>
+                                <p>📍 Retirar em: ${ent.endereco_retirada}</p>
+                                <p>🎯 Entregar em: ${ent.endereco_entrega}</p>
+                                <button class="btn btn-success" onclick="finalizarEntrega('${ent.id}')">Finalizar Entrega</button>
+                            </div>
+                            <hr>
+                        `;
+                    });
+                    containerAndamento.innerHTML = htmlAndamento;
+                } else {
+                    containerAndamento.innerHTML = `<p style="color: #777;">Nenhuma entrega em andamento no momento.</p>`;
+                    if (!ofertas || ofertas.length === 0) {
+                        sinalGps.style.display = 'none';
+                    }
+                }
+            } catch (e) {
+                console.error("Erro na verificação do painel:", e);
             }
         }
 
-        // Cronômetro visual de 20 segundos
         function iniciarContador20s() {
             clearInterval(timerInterval);
             let segundos = 20;
@@ -229,11 +235,10 @@
             }, 1000);
         }
 
-        // Ação de Aceitar Oferta
         async function aceitarEntregaAtual() {
             if (!entregaOfertaId || !motoboyLogadoId) return;
 
-            const { error } = await supabase
+            const { error } = await db
                 .from('entregas')
                 .update({ 
                     status: 'em_andamento', 
@@ -252,11 +257,10 @@
             verificarPainelMotoboy();
         }
 
-        // Ação de Recusar Oferta
         async function recusarEntregaAtual() {
             if (!entregaOfertaId || !motoboyLogadoId) return;
 
-            const { data: entrega } = await supabase
+            const { data: entrega } = await db
                 .from('entregas')
                 .select('recusados_por')
                 .eq('id', entregaOfertaId)
@@ -267,7 +271,7 @@
                 listaRecusados.push(motoboyLogadoId);
             }
 
-            await supabase
+            await db
                 .from('entregas')
                 .update({ 
                     motoboy_atual_id: null, 
@@ -279,9 +283,8 @@
             verificarPainelMotoboy();
         }
 
-        // Ação de Finalizar Entrega
         async function finalizarEntrega(idEntrega) {
-            const { error } = await supabase
+            const { error } = await db
                 .from('entregas')
                 .update({ 
                     status: 'concluida', 
