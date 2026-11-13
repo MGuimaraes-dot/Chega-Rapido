@@ -370,13 +370,21 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
     `).join('') || '<p style="color:#666;font-size:13px">Nenhum histórico encontrado.</p>';
   }
 
+  let ultimaListaJson = "";
+
   async function carregar() {
     try {
       const {data: lista} = await supabaseClient.from('entregas').select('*').eq('loja_id', loja.id).in('status',['pendente','agendado','aceita','coletada','em_andamento']).order('created_at', {ascending:false});
       
+      const listaJsonStr = JSON.stringify(lista);
+      if (listaJsonStr === ultimaListaJson) return;
+      ultimaListaJson = listaJsonStr;
+
       const div = document.getElementById('lista');
+      
       if(!lista || !lista.length){
         div.innerHTML = '<p style="color:#666;font-size:13px">Nenhum pedido ativo no momento.</p>';
+        document.getElementById('codigoBox').style.display = 'none'; // Esconde a caixa do PIN quando não há pedidos
         return;
       }
 
