@@ -85,7 +85,11 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 </div>
 
 <script>
-const db = window.supabaseClient;
+// Garante referência segura ao Supabase
+function getDb(){
+  return window.supabaseClient || supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
 const loja = getLoja(); if(!loja) location.href='index.html';
 document.getElementById('nomeLoja').innerText = loja.nome_fantasia || loja.nome || 'Loja';
 document.getElementById('cnpjLoja').innerText = 'CNPJ: ' + loja.cnpj;
@@ -216,7 +220,7 @@ async function atualizarPreviaFrete(){
 
   let chovendo = false, pico = false;
   try{
-    const {data: cfg} = await db.from('config').select('*').eq('id',1).maybeSingle();
+    const {data: cfg} = await getDb().from('config').select('*').eq('id',1).maybeSingle();
     chovendo = cfg?.chovendo || false;
     pico = cfg?.horario_pico || false;
   }catch(e){}
@@ -236,6 +240,7 @@ async function criar(){
   btn.disabled = true; btn.innerText = 'Calculando rota e criando...';
 
   try {
+    const db = getDb();
     const cliente = document.getElementById('cliente').value.trim();
     let whatsappCliente = soNumeros(document.getElementById('whatsappCliente').value);
     const endereco = document.getElementById('endereco').value.trim();
@@ -320,19 +325,20 @@ async function criar(){
 
 async function cancelarEntrega(id){
   if(!confirm('Deseja realmente cancelar este pedido de entrega?')) return;
-  const {error} = await db.from('entregas').update({status:'cancelado', cancelada_em: new Date().toISOString()}).eq('id',id).in('status',['pendente','agendado']);
+  const {error} = await getDb().from('entregas').update({status:'cancelado', cancelada_em: new Date().toISOString()}).eq('id',id).in('status',['pendente','agendado']);
   if(error) return alert('Não é possível cancelar uma entrega que já foi aceita.');
   alert('Entrega cancelada.');
   carregar();
 }
 
 async function avaliarMotoboy(entregaId, nota){
-  await db.from('entregas').update({avaliacao_motoboy: nota}).eq('id', entregaId);
+  await getDb().from('entregas').update({avaliacao_motoboy: nota}).eq('id', entregaId);
   carregar();
 }
 
 async function carregar(){
   try{
+    const db = getDb();
     const {data} = await db.from('entregas').select('*').eq('loja_id', loja.id).order('created_at',{ascending:false});
     
     const agoraMs = Date.now();
@@ -393,7 +399,7 @@ async function carregar(){
 async function salvarSenhaLoja(){
   const nova = document.getElementById('novaSenhaLoja').value;
   if(!nova || nova.length < 4) return alert('Digite uma senha válida');
-  const {error} = await db.from('lojas').update({senha: nova}).eq('id', loja.id);
+  const {error} = await getDb().from('lojas').update({senha: nova}).eq('id', loja.id);
   if(error) return alert('Erro: '+error.message);
   alert('Senha alterada com sucesso!');
   document.getElementById('novaSenhaLoja').value='';
