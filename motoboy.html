@@ -13,6 +13,7 @@ header{background:#00a650;color:#fff;padding:16px;text-align:center;font-weight:
 .btn-green{background:#00a650;color:#fff}.btn-orange{background:#ff5a00;color:#fff}.btn-gray{background:#eee;color:#333}.btn-blue{background:#1976d2;color:#fff}.btn-red{background:#fee2e2;color:#991b1b}
 .item{border:1px solid #eee;border-radius:12px;padding:14px;margin-top:10px;background:#fafafa}
 .item-aceita{border:2px solid #00a650;background:#f0fdf4}
+.item-combo{border:2px dashed #ff5a00;background:#fff7ed}
 input{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;font-size:16px;margin-top:8px}
 input.codigo{letter-spacing:6px;font-weight:900;text-align:center;font-size:20px}
 .config-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center}
@@ -50,13 +51,18 @@ input.codigo{letter-spacing:6px;font-weight:900;text-align:center;font-size:20px
 
 <button id="btnOnline" class="btn btn-green" onclick="alternarOnline()" style="margin-top:14px">🟢 Ficar Online</button>
 
+<!-- OFERTA DE COMBO / ROTA DUPLA -->
+<div id="areaCombo" style="display:none;margin-top:14px"></div>
+
+<!-- ENTREGAS ATIVAS -->
 <div id="areaAtiva" style="display:none">
-  <h3 style="font-size:15px;margin-top:18px;color:#00a650">📦 Entrega em Andamento</h3>
+  <h3 style="font-size:15px;margin-top:18px;color:#00a650">📦 Minhas Entregas em Andamento</h3>
   <div id="minhas"></div>
   <div id="map"></div>
   <a id="btnGpsExterno" href="#" target="_blank" class="btn btn-gray" style="text-decoration:none;display:block;text-align:center;font-size:13px;padding:10px">🗺️ Abrir Navegação por Voz (Google Maps)</a>
 </div>
 
+<!-- FILA DE NOVOS PEDIDOS -->
 <div id="areaFila">
   <h3 style="font-size:15px;margin-top:18px">🔔 Pedidos Disponíveis na Fila</h3>
   <div id="lista"></div>
@@ -68,8 +74,7 @@ const motoData = getMotoboy(); if(!motoData) location.href='index.html';
 let motoId = motoData.id;
 let onlineAtual = false;
 let map = null, markerMotoboy = null, markerDestino = null, rotaLayer = null;
-let entregaRenderizadaId = null;
-let entregaRenderizadaStatus = null;
+let assinaturaRenderizada = '';
 let ultimoIdAlertado = null;
 let audioCtx = null;
 
@@ -81,7 +86,6 @@ function abrirConfig(abrir){
   document.getElementById('modalConfig').style.display = abrir ? 'flex' : 'none';
 }
 
-// Desbloqueia o áudio no toque do usuário e toca sirene dupla + vibração forte
 function desbloquearAudio(){
   try{
     if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -150,52 +154,99 @@ async function alternarOnline(){
   carregar(true);
 }
 
+// Atualiza GPS do motoboy no banco continuamente quando online
+function enviarLocalizacaoGps(){
+  if(!onlineAtual || !navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(async pos => {
+    await supabaseClient.from('motoboys').update({
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude
+    }).eq('id', motoId);
+  }, ()=>{}, {enableHighAccuracy: true, timeout: 5000});
+}
+
 async function carregar(forcarRender = false){
-  // 1. Verifica se há entrega ativa
-  const {data: minhas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).in('status',['aceita','retirada']).order('created_at',{ascending:false});
-  const entregaAtiva = minhas && minhas.length > 0 ? minhas[0] : null;
+  enviarLocalizacaoGps();
+
+  // 1. Verifica entregas ativas deste motoboy
+  const {data: minhas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).in('status',['aceita','retirada']).order('created_at',{ascending:true});
+  const entregasAtivas = minhas || [];
 
   const areaAtiva = document.getElementById('areaAtiva');
   const areaFila = document.getElementById('areaFila');
+  const areaCombo = document.getElementById('areaCombo');
 
-  if(entregaAtiva){
+  if(entregasAtivas.length > 0){
     areaAtiva.style.display = 'block';
     areaFila.style.display = 'none';
 
-    // SÓ redesenha o HTML do card se mudou o ID da entrega ou mudou de 'aceita' para 'retirada' (NÃO apaga o input enquanto digita!)
-    if(forcarRender || entregaRenderizadaId !== entregaAtiva.id || entregaRenderizadaStatus !== entregaAtiva.status){
-      entregaRenderizadaId = entregaAtiva.id;
-      entregaRenderizadaStatus = entregaAtiva.status;
+    // Verifica se há oferta de COMBO (outro pedido pendente da MESMA loja enquanto o motoboy ainda está indo retirar)
+    const lojasAceitas = [...new Set(entregasAtivas.filter(e => e.status === 'aceita').map(e => e.loja_id))];
+    if(lojasAceitas.length > 0 && entregasAtivas.length < 3){
+      const {data: combos} = await supabaseClient.from('entregas').select('*').eq('status','pendente').in('loja_id', lojasAceitas).order('created_at',{ascending:true});
+      const combosDisponiveis = (combos||[]).filter(c => !(c.recusados_por || []).includes(motoId));
+      
+      if(combosDisponiveis.length > 0){
+        const c = combosDisponiveis[0];
+        areaCombo.style.display = 'block';
+        areaCombo.innerHTML = `
+          <div class="item item-combo">
+            <b style="color:#ff5a00">🔥 ROTA DUPLA (COMBO) DISPONÍVEL!</b><br>
+            Mesma loja: <b>${c.loja_nome}</b><br>
+            Cliente: ${c.cliente_nome} (${c.endereco})<br>
+            Ganho Extra: <b style="color:#00a650">+R$ 5,00</b><br>
+            <button class="btn btn-orange" style="padding:10px;margin-top:8px" onclick="aceitarCombo('${c.id}')">⚡ Aceitar Combo na Mesma Viagem</button>
+          </div>`;
+      } else {
+        areaCombo.style.display = 'none';
+      }
+    } else {
+      areaCombo.style.display = 'none';
+    }
 
-      document.getElementById('minhas').innerHTML = `
-        <div class="item item-aceita"><b>${entregaAtiva.cliente_nome}</b> - Ganho: <b style="color:#00a650">R$ ${(entregaAtiva.valor_motoboy||0).toFixed(2)}</b><br>
-        📦 <b>Loja:</b> ${entregaAtiva.loja_nome}<br>
-        📍 <b>Retirar em:</b> ${entregaAtiva.endereco_retirada || 'Ver na loja'}<br>
-        🏠 <b>Entregar em:</b> ${entregaAtiva.endereco} - ${entregaAtiva.bairro||''} (${entregaAtiva.cidade||''})<br>
-        📏 ${entregaAtiva.distancia_km||'?'} km ${entregaAtiva.chovendo?'(🌧️ +R$ 2 chuva)':''}<br>
-        
-        ${entregaAtiva.status==='aceita' ? `
-          <hr style="border:0;border-top:1px solid #bbf7d0;margin:10px 0">
-          <label><b>🔑 PIN de Retirada (Peça no balcão da loja):</b></label>
-          <input class="codigo" id="pinRetirada-${entregaAtiva.id}" placeholder="0000" maxlength="4" inputmode="numeric">
-          <button class="btn btn-orange" onclick="confirmarRetirada('${entregaAtiva.id}')">📦 Confirmar Retirada do Pedido</button>
-        ` : `
-          <hr style="border:0;border-top:1px solid #bbf7d0;margin:10px 0">
-          <p style="color:#00a650;font-weight:700;margin:6px 0">🚀 Pedido retirado! Rota traçada até o cliente.</p>
-          <label><b>🔑 PIN de Entrega (Peça ao cliente):</b></label>
-          <input class="codigo" id="pin-${entregaAtiva.id}" placeholder="0000" maxlength="4" inputmode="numeric">
-          <button class="btn btn-blue" onclick="finalizar('${entregaAtiva.id}')">✅ Finalizar Entrega</button>
-        `}
-        </div>`;
+    // Cria assinatura do estado atual para só redesenhar o HTML se algo mudou (protege a digitação do PIN!)
+    const novaAssinatura = entregasAtivas.map(e => `${e.id}:${e.status}:${e.chegou_no_local}`).join('|');
 
-      // Traça rota automática no GPS embutido para a Loja (se 'aceita') ou Cliente (se 'retirada')
-      tracarRotaAutomatica(entregaAtiva);
+    if(forcarRender || assinaturaRenderizada !== novaAssinatura){
+      assinaturaRenderizada = novaAssinatura;
+
+      document.getElementById('minhas').innerHTML = entregasAtivas.map((e, idx) => `
+        <div class="item item-aceita">
+          <div style="display:flex;justify-content:space-between">
+            <b>#${idx+1} - ${e.cliente_nome}</b>
+            <b style="color:#00a650">R$ ${(e.valor_motoboy||0).toFixed(2)} ${e.eh_combo?'(Combo)':''}</b>
+          </div>
+          📦 <b>Loja:</b> ${e.loja_nome}<br>
+          📍 <b>Retirar em:</b> ${e.endereco_retirada || 'Ver na loja'}<br>
+          🏠 <b>Entregar em:</b> ${e.endereco} - ${e.bairro||''} (${e.cidade||''})<br>
+          📏 ${e.distancia_km||'?'} km ${e.chovendo?'(🌧️ Chuva) ':''}${e.horario_pico?'(🔥 Pico) ':''}<br>
+          
+          ${e.status==='aceita' ? `
+            <hr style="border:0;border-top:1px solid #bbf7d0;margin:10px 0">
+            <label><b>🔑 PIN de Retirada (Peça no balcão):</b></label>
+            <input class="codigo" id="pinRetirada-${e.id}" placeholder="0000" maxlength="4" inputmode="numeric">
+            <button class="btn btn-orange" onclick="confirmarRetirada('${e.id}')">📦 Confirmar Retirada</button>
+          ` : `
+            <hr style="border:0;border-top:1px solid #bbf7d0;margin:10px 0">
+            ${!e.chegou_no_local ? `
+              <button class="btn btn-green" style="margin-bottom:8px" onclick="avisarChegada('${e.id}')">🔔 Cheguei no Local (Avisar Cliente)</button>
+            ` : `
+              <p style="color:#00a650;font-weight:800;font-size:13px;margin:4px 0">✅ Cliente avisado que você está no local!</p>
+            `}
+            <label><b>🔑 PIN de Entrega (Peça ao cliente):</b></label>
+            <input class="codigo" id="pin-${e.id}" placeholder="0000" maxlength="4" inputmode="numeric">
+            <button class="btn btn-blue" onclick="finalizar('${e.id}')">✅ Finalizar Entrega</button>
+          `}
+        </div>`).join('');
+
+      // Traça rota para a primeira entrega prioritária
+      tracarRotaAutomatica(entregasAtivas[0]);
     }
     return;
   } else {
-    entregaRenderizadaId = null;
-    entregaRenderizadaStatus = null;
+    assinaturaRenderizada = '';
     areaAtiva.style.display = 'none';
+    areaCombo.style.display = 'none';
     areaFila.style.display = 'block';
   }
 
@@ -210,7 +261,6 @@ async function carregar(forcarRender = false){
   const {data: pendentes} = await supabaseClient.from('entregas').select('*').eq('status','pendente').order('created_at',{ascending:true});
   const filtrados = (pendentes||[]).filter(e => !(e.recusados_por || []).includes(motoId));
 
-  // Toca sirene e vibra toda vez que houver um pedido novo na fila que ainda não foi alertado
   if(filtrados.length > 0){
     const primeiroId = filtrados[0].id;
     if(ultimoIdAlertado !== primeiroId){
@@ -225,7 +275,7 @@ async function carregar(forcarRender = false){
     <div class="item"><b>${e.cliente_nome}</b> - Ganho: <b style="color:#00a650;font-size:16px">R$ ${(e.valor_motoboy||0).toFixed(2)}</b><br>
     📦 Loja: ${e.loja_nome}<br>
     🏠 Destino: ${e.endereco} - ${e.cidade||''}<br>
-    📏 ${e.distancia_km||'?'} km ${e.chovendo?'(🌧️ +R$ 2 chuva)':''}<br>
+    📏 ${e.distancia_km||'?'} km ${e.chovendo?'(🌧️ +R$ 2 chuva) ':''}${e.horario_pico?'(🔥 +R$ 2 pico) ':''}<br>
     <div class="row-botoes">
       <button class="btn btn-green" style="margin-top:8px;flex:2" onclick="aceitar('${e.id}')">✅ Aceitar Corrida</button>
       <button class="btn btn-red" style="margin-top:8px;flex:1" onclick="recusar('${e.id}')">❌ Recusar</button>
@@ -246,14 +296,12 @@ async function tracarRotaAutomatica(entrega){
   }
   setTimeout(() => map.invalidateSize(), 200);
 
-  // Define qual é o destino atual: Loja (se aceita) ou Cliente (se retirada)
   const enderecoAlvo = entrega.status === 'aceita' 
     ? `${entrega.endereco_retirada || ''}, ${entrega.cidade || ''}, Brasil`
     : `${entrega.endereco || ''}, ${entrega.cidade || ''}, Brasil`;
 
   document.getElementById('btnGpsExterno').href = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(enderecoAlvo)}&travelmode=driving`;
 
-  // Busca coordenadas do destino
   let destLat = null, destLng = null;
   try{
     const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(enderecoAlvo)}`);
@@ -270,7 +318,7 @@ async function tracarRotaAutomatica(entrega){
       });
 
       if(markerMotoboy) map.removeLayer(markerMotoboy);
-      markerMotoboy = L.marker([lat, lng], {icon: motoIcon}).addTo(map).bindPopup('Você está aqui');
+      markerMotoboy = L.marker([lat, lng], {icon: motoIcon}).addTo(map);
 
       if(destLat && destLng){
         const destIcon = L.divIcon({
@@ -279,9 +327,8 @@ async function tracarRotaAutomatica(entrega){
         });
 
         if(markerDestino) map.removeLayer(markerDestino);
-        markerDestino = L.marker([destLat, destLng], {icon: destIcon}).addTo(map).bindPopup(entrega.status==='aceita' ? 'Retirar na Loja' : 'Entregar ao Cliente');
+        markerDestino = L.marker([destLat, destLng], {icon: destIcon}).addTo(map);
 
-        // Desenha a linha azul da rota pelas ruas via OSRM
         try{
           const osrm = await fetch(`https://router.project-osrm.org/route/v1/driving/${lng},${lat};${destLng},${destLat}?overview=full&geometries=geojson`);
           const rotaData = await osrm.json();
@@ -299,21 +346,18 @@ async function tracarRotaAutomatica(entrega){
 }
 
 async function atualizarExtrato(){
-  const hojeStr = new Date().toISOString().split('T')[0];
   const {data: entregues} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).eq('status','entregue');
-  let ganhoHoje = 0, ganhoMes = 0, qtdHoje = 0, qtdMes = 0;
-  const mesAtual = hojeStr.substring(0,7);
+  let saldoReceber = 0, totalHistorico = 0, qtdAberto = 0;
 
   (entregues||[]).forEach(e => {
     const val = Number(e.valor_motoboy || 0);
-    const dataEntrega = (e.entregue_em || '').split('T')[0];
-    if(dataEntrega === hojeStr){ ganhoHoje += val; qtdHoje++; }
-    if(dataEntrega.startsWith(mesAtual)){ ganhoMes += val; qtdMes++; }
+    totalHistorico += val;
+    if(!e.pago_motoboy){ saldoReceber += val; qtdAberto++; }
   });
 
   document.getElementById('extratoMoto').innerHTML = `
-    <b>Hoje (${qtdHoje} entregas):</b> R$ ${ganhoHoje.toFixed(2)}<br>
-    <b>Este Mês (${qtdMes} entregas):</b> R$ ${ganhoMes.toFixed(2)}<br>
+    <b>Saldo a Receber (${qtdAberto} entregas em aberto):</b> <span style="color:#00a650;font-size:15px">R$ ${saldoReceber.toFixed(2)}</span><br>
+    <b>Total Geral Acumulado:</b> R$ ${totalHistorico.toFixed(2)}<br>
     <small style="color:#666">Chave Pix: ${motoData.chave_pix || 'Não cadastrada'}</small>
   `;
 }
@@ -329,8 +373,27 @@ async function aceitar(id){
   }).eq('id', id).eq('status','pendente').select().maybeSingle();
 
   if(error || !data) return alert('Esta corrida já foi aceita por outro motoboy.');
-  
   await supabaseClient.from('motoboys').update({total_aceitas: (motoData.total_aceitas || 0) + 1}).eq('id', motoId);
+  carregar(true);
+}
+
+async function aceitarCombo(id){
+  desbloquearAudio();
+  const valoresCombo = calcularValoresFrete(3, false, false, true);
+  const {data, error} = await supabaseClient.from('entregas').update({
+    status: 'aceita', 
+    motoboy_id: motoId, 
+    motoboy_nome: motoData.nome_completo || motoData.nome,
+    motoboy_placa: motoData.placa_moto || motoData.placa,
+    valor_motoboy: valoresCombo.valorMotoboy,
+    valor_frete_loja: valoresCombo.valorLoja,
+    eh_combo: true,
+    aceita_em: new Date().toISOString()
+  }).eq('id', id).eq('status','pendente').select().maybeSingle();
+
+  if(error || !data) return alert('Este combo já foi pego.');
+  await supabaseClient.from('motoboys').update({total_aceitas: (motoData.total_aceitas || 0) + 1}).eq('id', motoId);
+  alert('⚡ Combo adicionado à sua rota! Retire os dois pedidos na loja.');
   carregar(true);
 }
 
@@ -353,6 +416,11 @@ async function confirmarRetirada(id){
   if(!data || pinInput !== data.codigo_retirada) return alert('❌ PIN de retirada incorreto!');
 
   await supabaseClient.from('entregas').update({status: 'retirada', retirada_confirmada: true, coletada_em: new Date().toISOString()}).eq('id', id);
+  carregar(true);
+}
+
+async function avisarChegada(id){
+  await supabaseClient.from('entregas').update({chegou_no_local: true}).eq('id', id);
   carregar(true);
 }
 
@@ -379,9 +447,8 @@ async function salvarSenhaMoto(){
 
 sincronizarEstadoInicial().then(() => carregar(true));
 
-// Só busca novas corridas em segundo plano se NÃO houver entrega ativa (não apaga mais o PIN enquanto digita!)
 setInterval(()=>{ 
-  if(onlineAtual && !entregaRenderizadaId) carregar(false); 
-}, 5000);
+  if(onlineAtual) carregar(false); 
+}, 6000);
 </script>
 </body></html>
