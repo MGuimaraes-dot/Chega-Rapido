@@ -58,13 +58,12 @@ input.codigo{letter-spacing:4px;font-weight:900;text-align:center}
 const motoData = getMotoboy(); if(!motoData) location.href='index.html';
 let motoId = motoData.id;
 let onlineAtual = false;
-let map = null, markerMotoboy = null, markerDestino = null;
+let map = null, markerMotoboy = null;
 
 document.getElementById('nomeMoto').innerText = motoData.nome_completo || motoData.nome || 'Motoboy';
 document.getElementById('cpfMoto').innerText = 'CPF: ' + motoData.cpf;
 document.getElementById('placaMoto').innerText = 'Placa: ' + (motoData.placa_moto || motoData.placa || 'N/A');
 
-// Sincroniza estado online inicial do banco
 async function sincronizarEstadoInicial(){
   const {data} = await supabaseClient.from('motoboys').select('online, status, bloqueado').eq('id', motoId).maybeSingle();
   if(data){
@@ -85,7 +84,7 @@ function tocarAlertaSonoro(){
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.type = 'sine'; osc.frequency.value = 587.33; // D5
+    osc.type = 'sine'; osc.frequency.value = 587.33;
     gain.gain.setValueAtTime(0.3, ctx.currentTime);
     osc.connect(gain); gain.connect(ctx.destination);
     osc.start(); osc.stop(ctx.currentTime + 0.4);
@@ -109,17 +108,11 @@ async function verificarStatus(){
 
 async function alternarOnline(){
   const status = await verificarStatus();
-  if(status !== 'aprovado') return alert('Seu cadastro ainda está em análise ou bloqueado pela administração.');
+  if(status !== 'aprovado') return alert('Seu cadastro ainda está em análise ou bloqueado.');
   
   onlineAtual = !onlineAtual;
   await supabaseClient.from('motoboys').update({online: onlineAtual}).eq('id', motoId);
   atualizarBotaoOnlineVisual();
-  
-  if(onlineAtual && navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(async p=>{
-      await supabaseClient.from('motoboys').update({lat: p.coords.latitude, lng: p.coords.longitude}).eq('id', motoId);
-    });
-  }
   carregar();
 }
 
@@ -129,14 +122,14 @@ async function carregar(){
   if(status==='aprovado'){
     box.className='status-box status-aprovado'; box.innerText='🟢 APROVADO - Pronto para entregas';
   } else if(status==='bloqueado'){
-    box.className='status-box status-bloqueado'; box.innerText='🔴 BLOQUEADO PELA ADMINISTRAÇÃO';
+    box.className='status-box status-bloqueado'; box.innerText='🔴 BLOQUEADO';
     return;
   } else {
-    box.className='status-box status-analise'; box.innerText='🟡 EM ANÁLISE - Aguarde aprovação';
+    box.className='status-box status-analise'; box.innerText='🟡 EM ANÁLISE';
     return;
   }
 
-  // 1. Minha entrega ativa (aceita ou retirada)
+  // 1. Minha entrega ativa
   const {data: minhas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).in('status',['aceita','retirada']).order('created_at',{ascending:false});
   const entregaAtiva = minhas && minhas.length > 0 ? minhas[0] : null;
 
@@ -172,25 +165,23 @@ async function carregar(){
     divMinhas.innerHTML = '<p style="font-size:13px;color:#666">Nenhuma entrega em andamento.</p>';
   }
 
-  // 2. Fila de pedidos disponíveis (somente se online e sem entrega ativa)
-  if(!onlineAtual || entregaAtiva){
-    document.getElementById('lista').innerHTML = !onlineAtual ? '<p style="font-size:13px;color:#666">Você está offline. Fique online para receber corridas.</p>' : '<p style="font-size:13px;color:#666">Você já possui uma entrega em andamento.</p>';
+  // 2. Fila de pedidos disponíveis
+  const listaDiv = document.getElementById('lista');
+  if(!onlineAtual){
+    listaDiv.innerHTML = '<p style="font-size:13px;color:#666">Você está offline. Fique online para receber corridas.</p>';
+    return;
+  }
+  if(entregaAtiva){
+    listaDiv.innerHTML = '<p style="font-size:13px;color:#666">Você já possui uma entrega ativa. Conclua-a para receber novas.</p>';
     return;
   }
 
   const {data: pendentes} = await supabaseClient.from('entregas').select('*').eq('status','pendente').order('created_at',{ascending:true});
-  
-  // Filtra pedidos que este motoboy já recusou
-  const filtrados = (pendentes||[]).filter(e => {
-    const recusados = e.recusados_por || [];
-    return !recusados.includes(motoId);
-  });
+  const filtrados = (pendentes||[]).filter(e => !(e.recusados_por || []).includes(motoId));
 
-  if(filtrados.length > 0){
-    tocarAlertaSonoro();
-  }
+  if(filtrados.length > 0) tocarAlertaSonoro();
 
-  document.getElementById('lista').innerHTML = filtrados.map(e=>`
+  listaDiv.innerHTML = filtrados.map(e=>`
     <div class="item"><b>${e.cliente_nome}</b> - Ganho: <b style="color:#00a650">R$ ${(e.valor_motoboy||0).toFixed(2)}</b><br>
     📦 Loja: ${e.loja_nome}<br>
     🏠 Destino: ${e.endereco} - ${e.cidade||''}<br>
@@ -200,7 +191,7 @@ async function carregar(){
       <button class="btn btn-red" style="margin-top:8px;flex:1" onclick="recusar('${e.id}')">❌ Recusar</button>
     </div></div>`).join('')||'<p style="font-size:13px;color:#666">Nenhuma entrega na fila no momento.</p>';
 
-  // 3. Extrato Financeiro
+  // 3. Extrato
   const hojeStr = new Date().toISOString().split('T')[0];
   const {data: entregues} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).eq('status','entregue');
   let ganhoHoje = 0, ganhoMes = 0, qtdHoje = 0, qtdMes = 0;
@@ -220,11 +211,11 @@ async function carregar(){
   `;
 }
 
-// Mapa com Leaflet e Ícone de Moto
 function inicializarMapa(entrega){
   if(!map){
     map = L.map('map').setView([-20.45, -50.55], 14);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    // Usando OpenStreetMap padrão sem exigir chave de API
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '&copy; OpenStreetMap'
     }).addTo(map);
   }
@@ -238,7 +229,7 @@ function inicializarMapa(entrega){
       });
 
       if(!markerMotoboy){
-        markerMotoboy = L.marker([lat, lng], {icon: motoIcon}).addTo(map).bindPopup('Sua Moto');
+        markerMotoboy = L.marker([lat, lng], {icon: motoIcon}).addTo(map);
       } else {
         markerMotoboy.setLatLng([lat, lng]);
       }
@@ -258,9 +249,7 @@ async function aceitar(id){
 
   if(error || !data) return alert('Esta corrida já foi aceita por outro motoboy.');
   
-  // Atualiza métrica do motoboy
   await supabaseClient.from('motoboys').update({total_aceitas: (motoData.total_aceitas || 0) + 1}).eq('id', motoId);
-
   alert('Corrida aceita! Siga para a loja.');
   carregar();
 }
@@ -276,25 +265,25 @@ async function recusar(id){
 
 async function confirmarRetirada(id){
   const pinInput = document.getElementById('pinRetirada-'+id).value.trim();
-  if(!pinInput || pinInput.length !== 4) return alert('Digite o PIN de 4 dígitos informado pela loja.');
+  if(!pinInput || pinInput.length !== 4) return alert('Digite o PIN de 4 dígitos da loja.');
   
   const {data} = await supabaseClient.from('entregas').select('codigo_retirada').eq('id', id).maybeSingle();
-  if(!data || pinInput !== data.codigo_retirada) return alert('❌ PIN de retirada incorreto! Confirme com o atendente da loja.');
+  if(!data || pinInput !== data.codigo_retirada) return alert('❌ PIN de retirada incorreto!');
 
   await supabaseClient.from('entregas').update({status: 'retirada', retirada_confirmada: true, coletada_em: new Date().toISOString()}).eq('id', id);
-  alert('✅ Retirada confirmada! Rota aberta até o cliente.');
+  alert('✅ Retirada confirmada!');
   carregar();
 }
 
 async function finalizar(id){
   const pin = document.getElementById('pin-'+id).value.trim();
-  if(!pin || pin.length!==4) return alert('Digite o PIN de 4 dígitos informado pelo cliente');
+  if(!pin || pin.length!==4) return alert('Digite o PIN de 4 dígitos do cliente');
   
   const {data} = await supabaseClient.from('entregas').select('codigo_entrega').eq('id',id).maybeSingle();
   if(!data || pin !== data.codigo_entrega) return alert('❌ PIN do cliente incorreto!');
   
   await supabaseClient.from('entregas').update({status:'entregue', entregue_em: new Date().toISOString(), codigo_confirmado:true}).eq('id',id);
-  alert('✅ Entrega finalizada com sucesso! Bom trabalho.');
+  alert('✅ Entrega finalizada com sucesso!');
   carregar();
 }
 
@@ -312,13 +301,7 @@ async function salvarSenhaMoto(){
   document.getElementById('novaSenhaMoto').value='';
 }
 
-sincronizarEstadoInicial().then(() => {
-  carregar();
-});
-
-// Atualiza a cada 8 segundos se estiver online
-setInterval(()=>{ 
-  if(onlineAtual) carregar(); 
-}, 8000);
+sincronizarEstadoInicial().then(() => carregar());
+setInterval(()=>{ if(onlineAtual) carregar(); }, 8000);
 </script>
 </body></html>
