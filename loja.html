@@ -65,7 +65,7 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 <div class="row"><div><label>Número</label><input id="numero" placeholder="123"></div><div><label>Bairro</label><input id="bairro"></div></div>
 <label>Cidade *</label><input id="cidade" placeholder="Cidade de entrega">
 <label>Valor do Pedido R$ * (Pago pelo cliente na loja)</label><input id="valor" placeholder="0.00" inputmode="decimal">
-<label>⏰ Agendar Entrega (Deixe em branco para entrega imediata)</label>
+<label>⏰ Agendar Entrega (Deixe em branco para imediata)</label>
 <input id="agendadoPara" type="datetime-local">
 <label>Observação / O que vai ser entregue</label><textarea id="obs" rows="2" placeholder="Ex: 1x Pizza de Calabresa..."></textarea>
 
@@ -85,6 +85,7 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 </div>
 
 <script>
+const db = window.supabaseClient;
 const loja = getLoja(); if(!loja) location.href='index.html';
 document.getElementById('nomeLoja').innerText = loja.nome_fantasia || loja.nome || 'Loja';
 document.getElementById('cnpjLoja').innerText = 'CNPJ: ' + loja.cnpj;
@@ -215,7 +216,7 @@ async function atualizarPreviaFrete(){
 
   let chovendo = false, pico = false;
   try{
-    const {data: cfg} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
+    const {data: cfg} = await db.from('config').select('*').eq('id',1).maybeSingle();
     chovendo = cfg?.chovendo || false;
     pico = cfg?.horario_pico || false;
   }catch(e){}
@@ -261,7 +262,7 @@ async function criar(){
     
     let chovendo = false, pico = false;
     try{
-      const {data: cfg} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
+      const {data: cfg} = await db.from('config').select('*').eq('id',1).maybeSingle();
       chovendo = cfg?.chovendo || false;
       pico = cfg?.horario_pico || false;
     }catch(e){}
@@ -269,11 +270,10 @@ async function criar(){
     const kmEst = await calcularKm(endereco + (numero ? ', ' + numero : ''), cidade);
     const valores = calcularValoresFrete(kmEst, chovendo, pico, false);
 
-    // Define se entra como pendente imediato ou agendado
     const statusInicial = agendadoInput ? 'agendado' : 'pendente';
     const agendadoISO = agendadoInput ? new Date(agendadoInput).toISOString() : null;
     
-    const {data: novaEntrega, error} = await supabaseClient.from('entregas').insert([{
+    const {data: novaEntrega, error} = await db.from('entregas').insert([{
       loja_id: loja.id, loja_nome: loja.nome_fantasia || loja.nome,
       cliente_nome: cliente, whatsapp_cliente: whatsappCliente,
       endereco: endereco + (numero ? ' - ' + numero : ''), cep, bairro, cidade,
@@ -320,79 +320,80 @@ async function criar(){
 
 async function cancelarEntrega(id){
   if(!confirm('Deseja realmente cancelar este pedido de entrega?')) return;
-  const {error} = await supabaseClient.from('entregas').update({status:'cancelado', cancelada_em: new Date().toISOString()}).eq('id',id).in('status',['pendente','agendado']);
-  if(error) return alert('Não é possível cancelar uma entrega que já foi aceita pelo motoboy.');
+  const {error} = await db.from('entregas').update({status:'cancelado', cancelada_em: new Date().toISOString()}).eq('id',id).in('status',['pendente','agendado']);
+  if(error) return alert('Não é possível cancelar uma entrega que já foi aceita.');
   alert('Entrega cancelada.');
   carregar();
 }
 
 async function avaliarMotoboy(entregaId, nota){
-  await supabaseClient.from('entregas').update({avaliacao_motoboy: nota}).eq('id', entregaId);
+  await db.from('entregas').update({avaliacao_motoboy: nota}).eq('id', entregaId);
   carregar();
 }
 
 async function carregar(){
-  const {data} = await supabaseClient.from('entregas').select('*').eq('loja_id', loja.id).order('created_at',{ascending:false});
-  
-  // Libera automaticamente pedidos agendados que faltam 15 min ou menos
-  const agoraMs = Date.now();
-  for(const e of (data||[])){
-    if(e.status === 'agendado' && e.agendado_para){
-      const alvoMs = new Date(e.agendado_para).getTime();
-      if(alvoMs - agoraMs <= 15 * 60 * 1000){
-        await supabaseClient.from('entregas').update({status: 'pendente'}).eq('id', e.id);
-        e.status = 'pendente';
+  try{
+    const {data} = await db.from('entregas').select('*').eq('loja_id', loja.id).order('created_at',{ascending:false});
+    
+    const agoraMs = Date.now();
+    for(const e of (data||[])){
+      if(e.status === 'agendado' && e.agendado_para){
+        const alvoMs = new Date(e.agendado_para).getTime();
+        if(alvoMs - agoraMs <= 15 * 60 * 1000){
+          await db.from('entregas').update({status: 'pendente'}).eq('id', e.id);
+          e.status = 'pendente';
+        }
       }
     }
-  }
 
-  const ativos = (data||[]).filter(e => ['agendado','pendente','aceita','retirada'].includes(e.status));
-  const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
-  
-  document.getElementById('lista').innerHTML = ativos.map(e=>{
-    const linkR = `${baseUrl}/rastreio.html?id=${e.id}`;
-    const msgZ = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido saiu para entrega!\n\n🔑 *PIN de Entrega:* ${e.codigo_entrega}\n📍 *Rastreio:* ${linkR}`);
-    const horaAgend = e.agendado_para ? new Date(e.agendado_para).toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'}) : '';
+    const ativos = (data||[]).filter(e => ['agendado','pendente','aceita','retirada'].includes(e.status));
+    const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+    
+    document.getElementById('lista').innerHTML = ativos.map(e=>{
+      const linkR = `${baseUrl}/rastreio.html?id=${e.id}`;
+      const msgZ = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido saiu para entrega!\n\n🔑 *PIN de Entrega:* ${e.codigo_entrega}\n📍 *Rastreio:* ${linkR}`);
+      const horaAgend = e.agendado_para ? new Date(e.agendado_para).toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'}) : '';
 
-    return `
-    <div class="item"><b>${e.cliente_nome}</b> - Pedido: R$ ${(e.valor||0).toFixed(2)}<br>
-    <span class="small">${e.endereco} - ${e.bairro||''} - ${e.cidade||''} (${e.distancia_km||'?'} km)</span><br>
-    <span class="badge">${e.status.toUpperCase()}</span> ${horaAgend ? `<small style="color:#1976d2;font-weight:700">⏰ Agendado: ${horaAgend}</small>` : ''} | <small>Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} ${e.chovendo?'(Chuva) ':''}${e.horario_pico?'(Pico) ':''}</small>
-    ${e.codigo_entrega ? `<br><b style="color:#ff5a00">🔑 PIN Cliente: ${e.codigo_entrega}</b> | <b>PIN Retirada: ${e.codigo_retirada||'N/A'}</b>` : ''}
-    ${e.motoboy_nome ? `<br><small>🛵 Motoboy: <b>${e.motoboy_nome}</b> (Placa: ${e.motoboy_placa||'N/A'})</small>` : ''}
-    ${e.whatsapp_cliente ? `<br><a href="https://wa.me/${e.whatsapp_cliente}?text=${msgZ}" target="_blank" style="display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#00a650;text-decoration:none">📲 Reenviar ZAP ao Cliente</a>` : ''}
-    ${['pendente','agendado'].includes(e.status) ? `<button class="btn btn-red" style="margin-top:8px;padding:8px" onclick="cancelarEntrega('${e.id}')">❌ Cancelar Pedido</button>` : ''}
-    </div>`;
-  }).join('')||'<p class="small">Nenhuma entrega ativa no momento.</p>';
-  
-  const historico = (data||[]).filter(e => ['entregue','cancelado'].includes(e.status));
-  let totalAberto = 0;
-  historico.forEach(e => { if(e.status==='entregue' && !e.pago_loja) totalAberto += Number(e.valor_frete_loja||0); });
-  
-  document.getElementById('extratoLoja').innerHTML = `
-    Total de entregas concluídas: ${historico.filter(e=>e.status==='entregue').length}<br>
-    <b>Saldo em aberto a repassar à plataforma: R$ ${totalAberto.toFixed(2)}</b>
-  `;
-  
-  document.getElementById('historicoLoja').innerHTML = historico.map(e=>`
-    <div class="item" style="background:#fff;padding:10px;margin-top:6px">
-      <b>${e.cliente_nome}</b> - R$ ${(e.valor||0).toFixed(2)}<br>
-      <span class="badge" style="background:${e.status==='entregue'?'#dcfce7':'#fee2e2'};color:${e.status==='entregue'?'#166534':'#991b1b'}">${e.status.toUpperCase()}</span>
-      ${e.pago_loja ? '<span class="badge" style="background:#dbeafe;color:#1e40af">PAGO</span>' : ''}
-      <small style="display:block;color:#666;margin-top:4px">Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} | Motoboy: ${e.motoboy_nome||'N/A'}</small>
-      ${e.status==='entregue' && e.motoboy_id ? `
-        <div class="estrelas" style="margin-top:6px">
-          <small>Avaliar Motoboy: </small>
-          ${[1,2,3,4,5].map(n => `<span onclick="avaliarMotoboy('${e.id}', ${n})">${(e.avaliacao_motoboy||0) >= n ? '⭐' : '☆'}</span>`).join('')}
-        </div>
-      ` : ''}
-    </div>`).join('')||'<p class="small">Nenhum pedido no histórico.</p>';
+      return `
+      <div class="item"><b>${e.cliente_nome}</b> - Pedido: R$ ${(e.valor||0).toFixed(2)}<br>
+      <span class="small">${e.endereco} - ${e.bairro||''} - ${e.cidade||''} (${e.distancia_km||'?'} km)</span><br>
+      <span class="badge">${e.status.toUpperCase()}</span> ${horaAgend ? `<small style="color:#1976d2;font-weight:700">⏰ Agendado: ${horaAgend}</small>` : ''} | <small>Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} ${e.chovendo?'(Chuva) ':''}${e.horario_pico?'(Pico) ':''}</small>
+      ${e.codigo_entrega ? `<br><b style="color:#ff5a00">🔑 PIN Cliente: ${e.codigo_entrega}</b> | <b>PIN Retirada: ${e.codigo_retirada||'N/A'}</b>` : ''}
+      ${e.motoboy_nome ? `<br><small>🛵 Motoboy: <b>${e.motoboy_nome}</b> (Placa: ${e.motoboy_placa||'N/A'})</small>` : ''}
+      ${e.whatsapp_cliente ? `<br><a href="https://wa.me/${e.whatsapp_cliente}?text=${msgZ}" target="_blank" style="display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#00a650;text-decoration:none">📲 Reenviar ZAP ao Cliente</a>` : ''}
+      ${['pendente','agendado'].includes(e.status) ? `<button class="btn btn-red" style="margin-top:8px;padding:8px" onclick="cancelarEntrega('${e.id}')">❌ Cancelar Pedido</button>` : ''}
+      </div>`;
+    }).join('')||'<p class="small">Nenhuma entrega ativa no momento.</p>';
+    
+    const historico = (data||[]).filter(e => ['entregue','cancelado'].includes(e.status));
+    let totalAberto = 0;
+    historico.forEach(e => { if(e.status==='entregue' && !e.pago_loja) totalAberto += Number(e.valor_frete_loja||0); });
+    
+    document.getElementById('extratoLoja').innerHTML = `
+      Total de entregas concluídas: ${historico.filter(e=>e.status==='entregue').length}<br>
+      <b>Saldo em aberto a repassar à plataforma: R$ ${totalAberto.toFixed(2)}</b>
+    `;
+    
+    document.getElementById('historicoLoja').innerHTML = historico.map(e=>`
+      <div class="item" style="background:#fff;padding:10px;margin-top:6px">
+        <b>${e.cliente_nome}</b> - R$ ${(e.valor||0).toFixed(2)}<br>
+        <span class="badge" style="background:${e.status==='entregue'?'#dcfce7':'#fee2e2'};color:${e.status==='entregue'?'#166534':'#991b1b'}">${e.status.toUpperCase()}</span>
+        ${e.pago_loja ? '<span class="badge" style="background:#dbeafe;color:#1e40af">PAGO</span>' : ''}
+        <small style="display:block;color:#666;margin-top:4px">Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} | Motoboy: ${e.motoboy_nome||'N/A'}</small>
+        ${e.status==='entregue' && e.motoboy_id ? `
+          <div class="estrelas" style="margin-top:6px">
+            <small>Avaliar Motoboy: </small>
+            ${[1,2,3,4,5].map(n => `<span onclick="avaliarMotoboy('${e.id}', ${n})">${(e.avaliacao_motoboy||0) >= n ? '⭐' : '☆'}</span>`).join('')}
+          </div>
+        ` : ''}
+      </div>`).join('')||'<p class="small">Nenhum pedido no histórico.</p>';
+  }catch(e){}
 }
 
 async function salvarSenhaLoja(){
   const nova = document.getElementById('novaSenhaLoja').value;
   if(!nova || nova.length < 4) return alert('Digite uma senha válida');
-  const {error} = await supabaseClient.from('lojas').update({senha: nova}).eq('id', loja.id);
+  const {error} = await db.from('lojas').update({senha: nova}).eq('id', loja.id);
   if(error) return alert('Erro: '+error.message);
   alert('Senha alterada com sucesso!');
   document.getElementById('novaSenhaLoja').value='';
