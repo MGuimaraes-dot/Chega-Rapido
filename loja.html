@@ -14,7 +14,7 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 .btn-orange{background:#ff5a00;color:#fff}.btn-green{background:#00a650;color:#fff}.btn-gray{background:#eee;color:#333}.btn-red{background:#fee2e2;color:#991b1b}
 .item{border:1px solid #eee;border-radius:12px;padding:12px;margin-top:10px;background:#fafafa}
 .badge{padding:4px 8px;border-radius:20px;font-size:11px;font-weight:700;background:#fff3e0;color:#e65100}
-.codigo-box{background:#fff3e0;border:2px dashed #ff5a00;border-radius:12px;padding:12px;text-align:center;margin-top:12px;display:none}
+.codigo-box{background:#fff3e0;border:2px dashed #ff5a00;border-radius:12px;padding:14px;text-align:center;margin-top:12px;display:none}
 .codigo-num{font-size:28px;font-weight:900;color:#ff5a00;letter-spacing:3px}
 #sugestoes{border:1px solid #ff5a00;border-radius:11px;margin-top:4px;overflow:hidden;display:none;background:#fff;position:relative;z-index:10}
 #sugestoes div{padding:10px;border-bottom:1px solid #eee;cursor:pointer;font-size:13px}
@@ -28,7 +28,6 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
   <button class="btn-config" onclick="abrirConfig(true)" title="Configurações">⚙️</button>
 </header>
 
-<!-- MODAL DE CONFIGURAÇÕES / EXTRATO -->
 <div id="modalConfig" class="config-modal">
   <div class="config-content">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -59,21 +58,21 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 <hr style="border:0;border-top:1px solid #eee;margin:16px 0">
 
 <label>Nome do cliente *</label><input id="cliente" placeholder="Ex: João Silva">
-<label>WhatsApp do cliente * (Para receber o link de rastreio e PIN)</label><input id="whatsappCliente" placeholder="Ex: 17999999999" inputmode="tel">
-<label>CEP *</label><input id="cep" placeholder="Somente números" maxlength="9" inputmode="numeric"><small id="cepMsg" style="color:#00a650;font-size:12px"></small>
+<label>WhatsApp do cliente * (Ex: 17999999999)</label><input id="whatsappCliente" placeholder="DDD + Número" inputmode="tel">
+<label>CEP (Opcional, ajuda a achar a rua)</label><input id="cep" placeholder="Somente números" maxlength="9" inputmode="numeric"><small id="cepMsg" style="color:#00a650;font-size:12px"></small>
 <label>Endereço de Entrega *</label><input id="endereco" placeholder="Digite a rua..." autocomplete="off"><div id="sugestoes"></div>
 <div class="row"><div><label>Número</label><input id="numero" placeholder="123"></div><div><label>Bairro</label><input id="bairro"></div></div>
-<label>Cidade</label><input id="cidade" placeholder="Sua cidade">
+<label>Cidade *</label><input id="cidade" placeholder="Cidade de entrega">
 <label>Valor do Pedido R$ * (Pago pelo cliente na loja)</label><input id="valor" placeholder="0.00" inputmode="decimal">
 <label>Observação / O que vai ser entregue</label><textarea id="obs" rows="2" placeholder="Ex: 1x Pizza de Calabresa..."></textarea>
 
-<div id="fretePreview" class="frete-info" style="display:none">🚚 Frete estimado: Calculando...</div>
+<div id="fretePreview" class="frete-info" style="display:none">🚚 Calculando distância real...</div>
 
 <div id="codigoBox" class="codigo-box">
 <div style="font-size:12px;font-weight:700">🔑 PIN DE ENTREGA (CLIENTE)</div>
 <div id="codigoNum" class="codigo-num">0000</div>
-<div style="font-size:11px;color:#666;margin-top:4px">🔑 PIN DE RETIRADA (BALCÃO): <b id="codigoRetiradaNum" style="color:#ff5a00">0000</b></div>
-<a id="btnZapCliente" href="#" target="_blank" class="btn btn-green" style="margin-top:10px;text-decoration:none;display:block">📲 Enviar ZAP com Rastreio ao Cliente</a>
+<div style="font-size:12px;color:#333;margin-top:6px">🔑 PIN DE RETIRADA (BALCÃO): <b id="codigoRetiradaNum" style="color:#ff5a00;font-size:16px">0000</b></div>
+<a id="btnZapCliente" href="#" target="_blank" class="btn btn-green" style="margin-top:12px;text-decoration:none;display:block">📲 Enviar ZAP com Rastreio ao Cliente</a>
 </div>
 
 <button id="btnCriar" class="btn btn-orange" onclick="criar()">+ Criar Solicitação de Entrega</button>
@@ -150,6 +149,8 @@ document.getElementById('endereco').addEventListener('input',()=>{
   },400);
 });
 
+document.getElementById('cidade').addEventListener('blur', atualizarPreviaFrete);
+
 function escolherRua(rua,bairro,cidade){
   document.getElementById('endereco').value=rua;
   if(bairro) document.getElementById('bairro').value=bairro;
@@ -159,19 +160,47 @@ function escolherRua(rua,bairro,cidade){
   atualizarPreviaFrete();
 }
 
+// Busca coordenadas precisas em cascata (Endereço exato -> Rua + Cidade -> Cidade)
+async function obterCoordenadas(enderecoTexto, cidadeTexto){
+  const tentativas = [
+    `${enderecoTexto}, ${cidadeTexto}, SP, Brasil`,
+    `${enderecoTexto.split('-')[0].trim()}, ${cidadeTexto}, SP, Brasil`,
+    `${cidadeTexto}, SP, Brasil`
+  ];
+  for(const query of tentativas){
+    try{
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`);
+      const d = await r.json();
+      if(d && d[0]) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) };
+    }catch(e){}
+  }
+  return null;
+}
+
+// Calcula distância real pela rua/rodovia via OSRM (fallback Haversine * 1.3)
 async function calcularKm(enderecoEntrega, cidadeEntrega){
-  try{
-    const r1 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(enderecoEntrega+', '+cidadeEntrega+', Brasil')}`);
-    const d1 = await r1.json();
-    const retirada = loja.endereco_retirada||loja.endereco||'';
-    const r2 = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(retirada+', '+cidadeEntrega+', Brasil')}`);
-    const d2 = await r2.json();
-    if(d1[0] && d2[0]){
-      const R=6371, dLat=(d1[0].lat-d2[0].lat)*Math.PI/180, dLon=(d1[0].lon-d2[0].lon)*Math.PI/180;
-      const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(d2[0].lat*Math.PI/180)*Math.cos(d1[0].lat*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
-      return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))*10)/10;
-    }
-  }catch(e){}
+  const retiradaTexto = loja.endereco_retirada || loja.endereco || '';
+  const cidadeLojaTexto = loja.cidade || cidadeSalva || 'Meridiano';
+
+  const coordLoja = await obterCoordenadas(retiradaTexto, cidadeLojaTexto);
+  const coordDestino = await obterCoordenadas(enderecoEntrega, cidadeEntrega);
+
+  if(coordLoja && coordDestino){
+    try{
+      const urlOsrm = `https://router.project-osrm.org/route/v1/driving/${coordLoja.lng},${coordLoja.lat};${coordDestino.lng},${coordDestino.lat}?overview=false`;
+      const r = await fetch(urlOsrm);
+      const d = await r.json();
+      if(d.routes && d.routes[0]){
+        return Math.max(1, Math.round((d.routes[0].distance / 1000) * 10) / 10);
+      }
+    }catch(e){}
+
+    // Fallback linha reta com fator de correção de rua (1.3x)
+    const R=6371, dLat=(coordDestino.lat-coordLoja.lat)*Math.PI/180, dLon=(coordDestino.lng-coordLoja.lng)*Math.PI/180;
+    const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(coordLoja.lat*Math.PI/180)*Math.cos(coordDestino.lat*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+    const distReta = R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    return Math.max(1, Math.round((distReta * 1.3) * 10) / 10);
+  }
   return 3;
 }
 
@@ -180,28 +209,30 @@ async function atualizarPreviaFrete(){
   const cidade = document.getElementById('cidade').value.trim();
   if(!endereco || !cidade) return;
   
+  const box = document.getElementById('fretePreview');
+  box.style.display='block';
+  box.innerText = '🚚 Calculando rota e frete...';
+
   let chovendo=false;
   try{ const {data: cfg} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle(); chovendo = cfg?.chovendo||false; }catch(e){}
 
   const km = await calcularKm(endereco, cidade);
   const valores = calcularValoresFrete(km, chovendo);
   
-  const box = document.getElementById('fretePreview');
-  box.style.display='block';
-  box.innerHTML = `🚚 Distância estimada: ${km} km | Frete para pagamento: <b>R$ ${valores.valorLoja.toFixed(2)}</b> ${chovendo ? '(🌧️ Com taxa de chuva)' : ''}`;
+  box.innerHTML = `🚚 Rota estimada: <b>${km} km</b> | Frete Loja: <b>R$ ${valores.valorLoja.toFixed(2)}</b> ${chovendo ? '(🌧️ Com taxa de chuva)' : ''}`;
 }
 
 async function criar(){
   const btn = document.getElementById('btnCriar');
-  btn.disabled = true; btn.innerText = 'Processando...';
+  btn.disabled = true; btn.innerText = 'Calculando rota e criando...';
 
   try {
     const cliente = document.getElementById('cliente').value.trim();
-    const whatsappCliente = soNumeros(document.getElementById('whatsappCliente').value);
+    let whatsappCliente = soNumeros(document.getElementById('whatsappCliente').value);
     const endereco = document.getElementById('endereco').value.trim();
     const cep = document.getElementById('cep').value;
     const bairro = document.getElementById('bairro').value;
-    const cidade = document.getElementById('cidade').value;
+    const cidade = document.getElementById('cidade').value.trim();
     const numero = document.getElementById('numero').value;
     const valor = document.getElementById('valor').value;
     const obs = document.getElementById('obs').value;
@@ -211,6 +242,10 @@ async function criar(){
       btn.disabled = false; btn.innerText = '+ Criar Solicitação de Entrega';
       return;
     }
+
+    if(!whatsappCliente.startsWith('55') && whatsappCliente.length <= 11){
+      whatsappCliente = '55' + whatsappCliente;
+    }
     
     const codigoEntrega = Math.floor(1000 + Math.random()*9000).toString();
     const codigoRetirada = Math.floor(1000 + Math.random()*9000).toString();
@@ -218,13 +253,13 @@ async function criar(){
     let chovendo=false;
     try{ const {data: cfg} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle(); chovendo = cfg?.chovendo||false; }catch(e){}
     
-    const kmEst = await calcularKm(endereco, cidade);
+    const kmEst = await calcularKm(endereco + (numero ? ', ' + numero : ''), cidade);
     const valores = calcularValoresFrete(kmEst, chovendo);
     
     const {data: novaEntrega, error} = await supabaseClient.from('entregas').insert([{
       loja_id: loja.id, loja_nome: loja.nome_fantasia || loja.nome,
       cliente_nome: cliente, whatsapp_cliente: whatsappCliente,
-      endereco: endereco+' - '+numero, cep, bairro, cidade,
+      endereco: endereco + (numero ? ' - ' + numero : ''), cep, bairro, cidade,
       endereco_retirada: loja.endereco_retirada || loja.endereco,
       valor: parseFloat(valor.replace(',','.')), 
       valor_frete_loja: valores.valorLoja,
@@ -240,12 +275,27 @@ async function criar(){
     document.getElementById('codigoNum').innerText=codigoEntrega;
     document.getElementById('codigoRetiradaNum').innerText=codigoRetirada;
     
-    const linkRastreio = `${window.location.origin}/rastreio.html?id=${novaEntrega.id}`;
-    const msgZap = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido saiu para entrega!\n\n🔑 PIN de Entrega: *${codigoEntrega}* (informe ao motoboy).\n\n📍 Acompanhe sua entrega em tempo real:\n${linkRastreio}`);
-    document.getElementById('btnZapCliente').href = `https://wa.me/55${whatsappCliente}?text=${msgZap}`;
+    // Constrói URL base limpa do GitHub Pages
+    const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+    const linkRastreio = `${baseUrl}/rastreio.html?id=${novaEntrega.id}`;
+    const msgZap = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido saiu para entrega!\n\n🔑 *PIN de Entrega:* ${codigoEntrega} (informe ao motoboy).\n\n📍 *Acompanhe ao vivo:*\n${linkRastreio}`);
+    const urlWhats = `https://wa.me/${whatsappCliente}?text=${msgZap}`;
+    
+    const btnZap = document.getElementById('btnZapCliente');
+    btnZap.href = urlWhats;
 
-    alert('Entrega criada com sucesso!');
+    // Limpa campos do formulário
+    document.getElementById('cliente').value = '';
+    document.getElementById('whatsappCliente').value = '';
+    document.getElementById('endereco').value = '';
+    document.getElementById('numero').value = '';
+    document.getElementById('valor').value = '';
+    document.getElementById('obs').value = '';
+
     carregar();
+    
+    // Abre o WhatsApp automaticamente para enviar ao cliente
+    window.open(urlWhats, '_blank');
   } catch(e) {
     document.getElementById('erro').innerText = 'Erro ao criar: ' + e.message;
   } finally {
@@ -266,15 +316,21 @@ async function carregar(){
   const {data} = await supabaseClient.from('entregas').select('*').eq('loja_id', loja.id).order('created_at',{ascending:false});
   
   const ativos = (data||[]).filter(e => ['pendente','aceita','retirada'].includes(e.status));
+  const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
   
-  document.getElementById('lista').innerHTML = ativos.map(e=>`
+  document.getElementById('lista').innerHTML = ativos.map(e=>{
+    const linkR = `${baseUrl}/rastreio.html?id=${e.id}`;
+    const msgZ = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido saiu para entrega!\n\n🔑 *PIN de Entrega:* ${e.codigo_entrega}\n📍 *Rastreio:* ${linkR}`);
+    return `
     <div class="item"><b>${e.cliente_nome}</b> - Pedido: R$ ${(e.valor||0).toFixed(2)}<br>
-    <span class="small">${e.endereco} - ${e.bairro||''} - ${e.cidade||''}</span><br>
+    <span class="small">${e.endereco} - ${e.bairro||''} - ${e.cidade||''} (${e.distancia_km||'?'} km)</span><br>
     <span class="badge">${e.status.toUpperCase()}</span> | <small>Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} ${e.chovendo?'(Chuva) ':''}</small>
     ${e.codigo_entrega ? `<br><b style="color:#ff5a00">🔑 PIN Cliente: ${e.codigo_entrega}</b> | <b>PIN Retirada: ${e.codigo_retirada||'N/A'}</b>` : ''}
     ${e.motoboy_nome ? `<br><small>🛵 Motoboy: <b>${e.motoboy_nome}</b> (Placa: ${e.motoboy_placa||'N/A'})</small>` : ''}
+    ${e.whatsapp_cliente ? `<br><a href="https://wa.me/${e.whatsapp_cliente}?text=${msgZ}" target="_blank" style="display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#00a650;text-decoration:none">📲 Reenviar ZAP ao Cliente</a>` : ''}
     ${e.status==='pendente' ? `<button class="btn btn-red" style="margin-top:8px;padding:8px" onclick="cancelarEntrega('${e.id}')">❌ Cancelar Pedido</button>` : ''}
-    </div>`).join('')||'<p class="small">Nenhuma entrega ativa no momento.</p>';
+    </div>`;
+  }).join('')||'<p class="small">Nenhuma entrega ativa no momento.</p>';
   
   const historico = (data||[]).filter(e => ['entregue','cancelado'].includes(e.status));
   let totalValor = 0;
