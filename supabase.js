@@ -2,9 +2,8 @@
 const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
 
-// Inicializa e força no escopo global para evitar qualquer erro de "not defined"
+// Disponibiliza o cliente globalmente de forma segura
 window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const supabaseClient = window.supabaseClient;
 
 function soNumeros(v) {
   return (v || '').replace(/\D/g, '');
@@ -26,7 +25,6 @@ function getMotoboy() {
   }
 }
 
-// Regra Financeira EntreAqui (Normal, Chuva, Pico e Combo)
 function calcularValoresFrete(km, chovendo = false, pico = false, ehCombo = false) {
   if (ehCombo) {
     return {
