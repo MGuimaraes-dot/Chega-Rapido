@@ -3,32 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EntreAqui - Rastreio ao Vivo</title>
+    <title>EntreAqui - Rastreio</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 15px; color: #333; }
-        .header-container { background: #ff5a00; color: white; padding: 12px 15px; border-radius: 8px; text-align: center; margin-bottom: 15px; font-weight: bold; font-size: 16px; }
-        .card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .map-container { height: 280px; width: 100%; border-radius: 8px; margin-top: 10px; border: 1px solid #ccc; z-index: 1; }
+        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
+        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .map-container { height: 230px; width: 100%; border-radius: 8px; margin-top: 15px; border: 1px solid #ccc; z-index: 1; }
     </style>
 </head>
 <body>
-    <div class="header-container">
+
+    <div style="background: #ff5a00; color: white; padding: 15px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 18px; margin-bottom: 20px;">
         📦 ENTREAQUI - RASTREIO AO VIVO
     </div>
 
-    <div class="card" id="info-pedido">
-        <h3 id="loja-nome" style="margin-top:0; text-align:center;">Carregando...</h3>
-        <p style="margin:4px 0;"><strong>Cliente:</strong> <span id="cliente-nome">-</span></p>
-        <p style="margin:4px 0;"><strong>Endereço:</strong> <span id="cliente-endereco">-</span></p>
+    <div class="card" id="card-rastreio">
+        <h3 id="loja-nome" style="margin-top:0; text-align:center; font-size:18px;">Carregando...</h3>
+        <p><strong>Cliente:</strong> <span id="cliente-nome">-</span></p>
+        <p><strong>Endereço:</strong> <span id="cliente-endereco">-</span></p>
         
-        <div style="background:#eef2f5; padding:10px; border-radius:6px; text-align:center; margin-top:10px;">
-            🔑 <strong>PIN DE CONFIRMAÇÃO:</strong> <span id="pin-entrega" style="font-size:18px; color:#28a745; font-weight:900;">----</span>
+        <div style="background: #eef2f5; padding: 12px; border-radius: 8px; text-align: center; margin-top: 15px; border: 1px solid #b8daff;">
+            🔑 <strong>PIN DE CONFIRMAÇÃO:</strong> <span id="pin-entrega" style="font-size:20px; color:#28a745; font-weight:900;">----</span>
         </div>
 
-        <!-- Mini Mapa Leaflet em tempo real -->
+        <!-- Mini Mapa igualzinho ao do painel do motoboy -->
         <div id="map-rastreio" class="map-container"></div>
     </div>
 
@@ -45,23 +45,24 @@
 
         window.onload = async () => {
             if (!entregaId) {
-                document.getElementById('info-pedido').innerHTML = '<p style="text-align:center; color:red;">ID da entrega não informado.</p>';
+                document.getElementById('card-rastreio').innerHTML = '<p style="text-align:center; color:red;">ID da entrega não informado na URL.</p>';
                 return;
             }
-            await carregarDetalhesRastreio();
 
-            // Atualização em tempo real via WebSocket do Supabase
-            db.channel('public:rastreio')
+            await carregarDadosRastreio();
+
+            // Ouve alterações na entrega ou na tabela de motoboys para atualizar o mapa em tempo real
+            db.channel('public:rastreio_vivo')
               .on('postgres_changes', { event: '*', schema: 'public', table: 'entregas', filter: `id=eq.${entregaId}` }, () => {
-                  carregarDetalhesRastreio();
+                  carregarDadosRastreio();
               })
               .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'motoboys' }, () => {
-                  atualizarPosicaoMotoboyNoMapa();
+                  carregarDadosRastreio();
               })
               .subscribe();
         };
 
-        async function carregarDetalhesRastreio() {
+        async function carregarDadosRastreio() {
             const { data: entrega, error } = await db
                 .from('entregas')
                 .select('*')
@@ -69,7 +70,7 @@
                 .single();
 
             if (error || !entrega) {
-                document.getElementById('info-pedido').innerHTML = '<p style="text-align:center; color:red;">Entrega não encontrada.</p>';
+                document.getElementById('card-rastreio').innerHTML = '<p style="text-align:center; color:red;">Entrega não encontrada.</p>';
                 return;
             }
 
@@ -78,34 +79,34 @@
             document.getElementById('cliente-endereco').innerText = entrega.endereco || "-";
             document.getElementById('pin-entrega').innerText = entrega.codigo_entrega || "----";
 
-            await inicializarOuAtualizarMapa(entrega.motoboy_id);
-        }
-
-        async function inicializarOuAtualizarMapa(motoboyId) {
+            // Busca as coordenadas do motoboy atribuído
             let lat = null;
             let lng = null;
 
-            // Busca as coordenadas reais gravadas na tabela de motoboys para este entregador
-            if (motoboyId) {
-                const { data: mb } = await db.from('motoboys').select('lat, lng').eq('id', motoboyId).single();
+            if (entrega.motoboy_id) {
+                const { data: mb } = await db.from('motoboys').select('lat, lng').eq('id', entrega.motoboy_id).single();
                 if (mb && mb.lat && mb.lng) {
                     lat = mb.lat;
                     lng = mb.lng;
                 }
             }
 
-            // Fallback caso o motoboy ainda não tenha enviado posição
+            // Fallback caso o motoboy ainda não tenha enviado sinal de GPS
             if (!lat || !lng) {
-                lat = -20.4485; 
+                lat = -20.4485;
                 lng = -50.2452;
             }
 
+            atualizarMapaLeaflet(lat, lng);
+        }
+
+        function atualizarMapaLeaflet(lat, lng) {
             if (!map) {
                 map = L.map('map-rastreio', { zoomControl: false }).setView([lat, lng], 16);
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             }
 
-            // Ícone limpo e padronizado com a moto 🏍️
+            // Mesmo ícone limpo com emoji de moto 🏍️ usado no painel do motoboy
             const iconeMoto = L.divIcon({
                 className: 'custom-moto-icon',
                 html: '<div style="background:#28a745; color:#fff; width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; box-shadow:0 4px 10px rgba(0,0,0,0.4); border:2px solid #fff;">🏍️</div>',
@@ -121,17 +122,6 @@
 
             map.setView([lat, lng], map.getZoom());
             setTimeout(() => { map.invalidateSize(); }, 200);
-        }
-
-        async function atualizarPosicaoMotoboyNoMapa() {
-            const { data: entrega } = await db.from('entregas').select('motoboy_id').eq('id', entregaId).single();
-            if (entrega && entrega.motoboy_id) {
-                const { data: mb } = await db.from('motoboys').select('lat, lng').eq('id', entrega.motoboy_id).single();
-                if (mb && mb.lat && mb.lng && motoMarker && map) {
-                    motoMarker.setLatLng([mb.lat, mb.lng]);
-                    map.setView([mb.lat, mb.lng], map.getZoom());
-                }
-            }
         }
     </script>
 </body>
