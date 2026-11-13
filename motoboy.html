@@ -30,7 +30,7 @@
         input, select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
         input.codigo { letter-spacing: 4px; font-weight: 900; text-align: center; font-size: 16px; }
         .item { border: 1px solid #eee; border-radius: 8px; padding: 10px; margin-top: 8px; background: #fafafa; font-size: 12px; }
-        .map-container { height: 160px; width: 100%; border-radius: 6px; margin-top: 10px; border: 1px solid #ccc; z-index: 1; }
+        .map-container { height: 230px; width: 100%; border-radius: 8px; margin-top: 10px; border: 1px solid #ccc; z-index: 1; }
         .box-cancelar { display:none; background:#fff5f5; border:1px solid #feb2b2; padding:8px; border-radius:6px; margin-top:6px; }
     </style>
 </head>
@@ -116,7 +116,7 @@
         let timerInterval = null;
         let onlineAtual = false;
         let watchId = null;
-        let mapasInstanciados = {}; // Armazena instâncias dos mini mapas por ID
+        let mapasInstanciados = {};
 
         window.onload = async () => {
             await carregarDadosMotoboy();
@@ -353,7 +353,6 @@
                     sinalGps.style.display = 'block';
                     let htmlAndamento = '';
                     
-                    // IDs atuais para gerenciar instâncias de mapas
                     let idsAtuais = andamentos.map(e => e.id);
                     Object.keys(mapasInstanciados).forEach(id => {
                         if (!idsAtuais.includes(id)) {
@@ -392,7 +391,7 @@
                                 
                                 ${acaoHtml}
                                 
-                                <!-- Mini Mapa Leaflet logo abaixo -->
+                                <!-- Mini Mapa Leaflet dinâmico com Moto 160 -->
                                 <div id="map-${ent.id}" class="map-container"></div>
 
                                 <button class="btn btn-danger" style="margin-top:8px; background:#e53e3e; font-size:11px; padding:6px" onclick="toggleBoxCancelar('${ent.id}')">❌ Cancelar / Devolver Corrida</button>
@@ -407,7 +406,6 @@
                     });
                     containerAndamento.innerHTML = htmlAndamento;
 
-                    // Inicializa os mini mapas após inserir no HTML
                     andamentos.forEach(ent => {
                         setTimeout(() => {
                             inicializarMiniMapa(ent);
@@ -425,43 +423,54 @@
             }
         }
 
-        // Função para criar o Mini Mapa com ícone de Moto
+        // Função para carregar o Mini Mapa usando a posição real do GPS do motoboy (sem travar em cidade fixa)
         async function inicializarMiniMapa(ent) {
             const mapId = `map-${ent.id}`;
             const container = document.getElementById(mapId);
             if (!container) return;
 
-            // Se já existe instância, remove para recriar limpo
             if (mapasInstanciados[ent.id]) {
                 mapasInstanciados[ent.id].remove();
                 delete mapasInstanciados[ent.id];
             }
 
-            // Pega posição atual do motoboy do banco ou usa coordenadas padrão de Fernandópolis/Meridiano
+            // 1. Tenta buscar a latitude e longitude real salva no banco de dados
             const { data: motoboyData } = await db.from('motoboys').select('lat, lng').eq('id', motoboyLogadoId).single();
-            let lat = motoboyData?.lat || -20.4485;
-            let lng = motoboyData?.lng || -50.2452;
+            
+            let lat = motoboyData?.lat;
+            let lng = motoboyData?.lng;
 
-            const map = L.map(mapId, { zoomControl: false }).setView([lat, lng], 14);
+            // 2. Se não estiver no banco, pega direto da geolocalização atual do navegador do celular na hora
+            if (!lat || !lng) {
+                try {
+                    const pos = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+                    });
+                    lat = pos.coords.latitude;
+                    lng = pos.coords.longitude;
+                } catch (e) {
+                    lat = -20.3850; // Fallback neutro caso o GPS esteja totalmente bloqueado
+                    lng = -50.3750;
+                }
+            }
+
+            const map = L.map(mapId, { zoomControl: false }).setView([lat, lng], 15);
             
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19
             }).addTo(map);
 
-            // Ícone personalizado de Moto
+            // Ícone moderno de Moto 160
             const iconeMoto = L.divIcon({
                 className: 'custom-moto-icon',
-                html: '<div style="background:#28a745;color:white;padding:4px 8px;border-radius:12px;font-weight:bold;font-size:11px;box-shadow:0 2px 5px rgba(0,0,0,0.3);white-space:nowrap;">🛵 Moto</div>',
-                iconSize: [50, 24],
-                iconAnchor: [25, 12]
+                html: '<div style="background:#1a202c; color:#fff; padding:6px 12px; border-radius:20px; font-weight:bold; font-size:12px; box-shadow:0 4px 10px rgba(0,0,0,0.4); display:flex; align-items:center; gap:5px; border:2px solid #28a745; white-space:nowrap;">🏍️ Moto 160</div>',
+                iconSize: [110, 34],
+                iconAnchor: [55, 17]
             });
 
-            L.marker([lat, lng], { icon: iconeMoto }).addTo(map).bindPopup('Sua localização (Motoboy)');
+            L.marker([lat, lng], { icon: iconeMoto }).addTo(map).bindPopup('Sua localização real (Moto 160)');
 
-            // Marcador do Destino (Loja ou Cliente dependendo da etapa)
             let destinoTexto = (ent.status === 'aceita' || ent.status === 'em_andamento') ? `Loja: ${ent.endereco_retirada}` : `Cliente: ${ent.endereco}`;
-            
-            // Usamos coordenadas genéricas ou centralizadas para o destino se não houver geocodificação exata, mas o Leaflet posiciona bem com o visualizador
             L.marker([lat + 0.002, lng + 0.002]).addTo(map).bindPopup(destinoTexto);
 
             mapasInstanciados[ent.id] = map;
