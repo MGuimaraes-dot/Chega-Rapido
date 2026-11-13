@@ -10,12 +10,12 @@
         .header-container { background: #28a745; color: white; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: relative; }
         .btn-config { background: none; border: 0; color: #fff; font-size: 24px; cursor: pointer; }
         .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .btn { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; margin-top: 6px; }
-        .btn-success { background-color: #28a745; width: 100%; }
-        .btn-danger { background-color: #dc3545; width: 100%; }
-        .btn-orange { background-color: #ff5a00; width: 100%; }
-        .btn-blue { background-color: #1976d2; width: 100%; }
-        .btn-gray { background-color: #eee; color: #333; width: 100%; }
+        .btn { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; margin-top: 8px; width: 100%; font-size: 14px; }
+        .btn-success { background-color: #28a745; }
+        .btn-danger { background-color: #dc3545; }
+        .btn-orange { background-color: #ff5a00; }
+        .btn-blue { background-color: #1976d2; }
+        .btn-gray { background-color: #eee; color: #333; }
         .btn-online-toggle { width: 100%; padding: 12px; font-size: 15px; border-radius: 8px; border: 0; font-weight: 900; cursor: pointer; margin-bottom: 15px; }
         .btn:hover { opacity: 0.9; }
         #sinal-gps { display: none; background: #eef2f5; color: #007bff; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; margin-bottom: 15px; border: 1px solid #b8daff; font-size: 13px; }
@@ -75,7 +75,7 @@
         📍 GPS Ativo: Rastreando rota da entrega...
     </div>
 
-    <!-- SEÇÃO 1: NOVA ENTREGA NA FILA (Com cronômetro de 20s) -->
+    <!-- SEÇÃO 1: NOVA ENTREGA NA FILA -->
     <div id="card-oferta-entrega" class="card" style="display: none; border: 2px solid #28a745;">
         <h3 style="margin-top: 0; color: #28a745;">⚡ Nova Entrega Disponível (Sua Vez na Fila)!</h3>
         <p><strong>Loja:</strong> <span id="lbl-loja"></span></p>
@@ -280,7 +280,6 @@
             const containerAndamento = document.getElementById('lista-entregas-andamento');
 
             try {
-                // 1. Verifica se já tenho entregas em andamento
                 const { data: andamentos } = await db
                     .from('entregas')
                     .select('*')
@@ -289,7 +288,6 @@
 
                 const tenhoEntregaAtiva = andamentos && andamentos.length > 0;
 
-                // 2. Só busca novas ofertas na fila se eu NÃO tiver nenhuma entrega ativa
                 let ofertaAtiva = null;
 
                 if (!tenhoEntregaAtiva) {
@@ -354,7 +352,6 @@
                     clearInterval(timerInterval);
                 }
 
-                // 3. Renderiza Entregas em Andamento com GPS Dinâmico por Etapa
                 if (tenhoEntregaAtiva) {
                     sinalGps.style.display = 'block';
                     let htmlAndamento = '';
@@ -363,19 +360,16 @@
                         let mapa = "";
                         let acaoHtml = "";
 
-                        // ETAPA 1: Aceitou, mas ainda não retirou -> Rota até a Loja
                         if (ent.status === 'aceita' || ent.status === 'em_andamento') {
                             mapa = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(ent.endereco_retirada || '')}`;
                             acaoHtml = `
-                                <a href="${mapa}" target="_blank" class="btn btn-blue" style="display:block; text-align:center; padding:10px; border-radius:8px; margin-top:8px; text-decoration:none; font-weight:700;">🗺️ Rota até a Loja (Retirada)</a>
-                                <button class="btn btn-orange" style="background:#ff5a00; color:#fff; margin-top:8px; width:100%; border:0; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;" onclick="retirar('${ent.id}')">📦 Marcar como Retirado</button>
+                                <a href="${mapa}" target="_blank" class="btn btn-blue" style="display:block; text-align:center; text-decoration:none; box-sizing:border-box;">🗺️ Rota até a Loja (Retirada)</a>
+                                <button class="btn btn-orange" onclick="retirar('${ent.id}')">📦 Marcar como Retirado</button>
                             `;
-                        } 
-                        // ETAPA 2: Já retirou -> Rota da Loja até o Cliente
-                        else if (ent.status === 'retirada') {
+                        } else if (ent.status === 'retirada') {
                             mapa = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(ent.endereco_retirada || '')}&destination=${encodeURIComponent(ent.endereco || '')}`;
                             acaoHtml = `
-                                <a href="${mapa}" target="_blank" class="btn btn-blue" style="display:block; text-align:center; padding:10px; border-radius:8px; margin-top:8px; text-decoration:none; font-weight:700;">🗺️ Rota até o Cliente (Entrega)</a>
+                                <a href="${mapa}" target="_blank" class="btn btn-blue" style="display:block; text-align:center; text-decoration:none; box-sizing:border-box;">🗺️ Rota até o Cliente (Entrega)</a>
                                 
                                 <label style="font-size: 12px; font-weight: 700; display: block; margin-top: 10px;">PIN de 4 dígitos do Cliente:</label>
                                 <input class="codigo" id="pin-${ent.id}" placeholder="0000" maxlength="4" inputmode="numeric">
@@ -392,7 +386,7 @@
                                 
                                 ${acaoHtml}
                                 
-                                <button class="btn btn-danger" style="margin-top:8px; background:#e53e3e; font-size:12px; padding:6px" onclick="toggleBoxCancelar('${ent.id}')">❌ Cancelar / Devolver Corrida</button>
+                                <button class="btn btn-danger" style="margin-top:8px; background:#e53e3e; font-size:12px; padding:8px" onclick="toggleBoxCancelar('${ent.id}')">❌ Cancelar / Devolver Corrida</button>
                                 
                                 <div id="box-cancelar-${ent.id}" class="box-cancelar">
                                     <label style="font-size:11px; margin-top:0">Motivo do cancelamento:</label>
@@ -434,7 +428,6 @@
         async function aceitarEntregaAtual() {
             if (!entregaOfertaId || !motoboyLogadoId) return;
 
-            // Define status como 'aceita' para iniciar indo até a loja
             const { error } = await db
                 .from('entregas')
                 .update({ 
