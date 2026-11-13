@@ -2,7 +2,9 @@
 const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
 
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Inicializa e força no escopo global para evitar qualquer erro de "not defined"
+window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = window.supabaseClient;
 
 function soNumeros(v) {
   return (v || '').replace(/\D/g, '');
@@ -27,7 +29,6 @@ function getMotoboy() {
 // Regra Financeira EntreAqui (Normal, Chuva, Pico e Combo)
 function calcularValoresFrete(km, chovendo = false, pico = false, ehCombo = false) {
   if (ehCombo) {
-    // Combo: Motoboy ganha +R$ 5,00 na segunda entrega da mesma loja, Loja paga R$ 7,00 (Margem R$ 2,00 mantida)
     return {
       valorMotoboy: 5.00,
       valorLoja: 7.00
