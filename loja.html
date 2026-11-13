@@ -1,8 +1,6 @@
 <!DOCTYPE html><html lang="pt-BR"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EntreAqui - Painel Loja</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase.js"></script>
 <style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
 header{background:#ff5a00;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:22px;position:relative}
 .btn-config{position:absolute;right:16px;top:50%;transform:translateY(-50%);background:none;border:0;color:#fff;font-size:22px;cursor:pointer}
@@ -46,7 +44,7 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
     <h3 style="font-size:14px;margin-top:16px">📜 Histórico & Avaliação de Entregadores</h3>
     <div id="historicoLoja" style="max-height:240px;overflow-y:auto"></div>
     
-    <button class="btn btn-gray" onclick="localStorage.clear();location.href='index.html'" style="margin-top:20px">Sair da Conta</button>
+    <button class="btn btn-gray" onclick="sairDaConta()" style="margin-top:20px">Sair da Conta</button>
   </div>
 </div>
 
@@ -84,321 +82,334 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 <div id="lista" style="margin-top:8px"></div><div id="erro" style="color:red;margin-top:10px;font-size:13px"></div>
 </div>
 
-<script>
-const loja = getLoja(); if(!loja) location.href='index.html';
-document.getElementById('nomeLoja').innerText = loja.nome_fantasia || loja.nome || 'Loja';
-document.getElementById('cnpjLoja').innerText = 'CNPJ: ' + loja.cnpj;
-document.getElementById('enderecoRetiradaInfo').innerText = '📦 Retirada: ' + (loja.endereco_retirada || loja.endereco || '');
+<script type="module">
+  import { supabaseClient, getLoja, soNumeros, calcularValoresFrete } from './supabase.js';
 
-function abrirConfig(abrir){
-  document.getElementById('modalConfig').style.display = abrir ? 'flex' : 'none';
-}
+  const loja = getLoja(); 
+  if(!loja) location.href = 'index.html';
 
-function setCidade(c){
-  if(!c) return;
-  document.getElementById('cidade').value=c;
-  document.getElementById('cidadeLoja').innerText='📍 '+c;
-  localStorage.setItem('cidade_atual', c);
-}
-const cidadeSalva = localStorage.getItem('cidade_atual');
-if(cidadeSalva) setCidade(cidadeSalva);
+  document.getElementById('nomeLoja').innerText = loja.nome_fantasia || loja.nome || 'Loja';
+  document.getElementById('cnpjLoja').innerText = 'CNPJ: ' + loja.cnpj;
+  document.getElementById('enderecoRetiradaInfo').innerText = '📦 Retirada: ' + (loja.endereco_retirada || loja.endereco || '');
 
-if(navigator.geolocation){
-  navigator.geolocation.getCurrentPosition(async pos=>{
+  window.abrirConfig = function(abrir) {
+    document.getElementById('modalConfig').style.display = abrir ? 'flex' : 'none';
+  };
+
+  window.sairDaConta = function() {
+    localStorage.clear();
+    location.href = 'index.html';
+  };
+
+  function setCidade(c) {
+    if(!c) return;
+    document.getElementById('cidade').value = c;
+    document.getElementById('cidadeLoja').innerText = '📍 ' + c;
+    localStorage.setItem('cidade_atual', c);
+  }
+  const cidadeSalva = localStorage.getItem('cidade_atual');
+  if(cidadeSalva) setCidade(cidadeSalva);
+
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(async pos => {
+      try{
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
+        const d = await r.json();
+        const cidade = d.address.city || d.address.town || d.address.village || d.address.municipality;
+        if(cidade) setCidade(cidade);
+      }catch(e){}
+    }, ()=>{}, {timeout:5000});
+  }
+
+  document.getElementById('cep').addEventListener('blur', async () => {
+    let cep = document.getElementById('cep').value.replace(/\D/g,''); 
+    if(cep.length !== 8) return;
+    document.getElementById('cepMsg').innerText = 'Buscando CEP...';
     try{
-      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`);
-      const d=await r.json();
-      const cidade=d.address.city||d.address.town||d.address.village||d.address.municipality;
-      if(cidade) setCidade(cidade);
-    }catch(e){}
-  },()=>{}, {timeout:5000});
-}
+      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`); 
+      const d = await r.json();
+      if(d.erro){ document.getElementById('cepMsg').innerText = 'CEP não encontrado'; return; }
+      document.getElementById('endereco').value = d.logradouro || ''; 
+      document.getElementById('bairro').value = d.bairro || ''; 
+      document.getElementById('cidade').value = d.localidade || '';
+      document.getElementById('cepMsg').innerText = '✅ Endereço preenchido';
+      document.getElementById('numero').focus();
+      atualizarPreviaFrete();
+    }catch(e){ document.getElementById('cepMsg').innerText = ''; }
+  });
 
-document.getElementById('cep').addEventListener('blur',async()=>{
-  let cep=document.getElementById('cep').value.replace(/\D/g,''); if(cep.length!==8) return;
-  document.getElementById('cepMsg').innerText='Buscando CEP...';
-  try{
-    const r=await fetch(`https://viacep.com.br/ws/${cep}/json/`); const d=await r.json();
-    if(d.erro){document.getElementById('cepMsg').innerText='CEP não encontrado';return;}
-    document.getElementById('endereco').value=d.logradouro||''; document.getElementById('bairro').value=d.bairro||''; document.getElementById('cidade').value=d.localidade||'';
-    document.getElementById('cepMsg').innerText='✅ Endereço preenchido';
+  let timer;
+  document.getElementById('endereco').addEventListener('input', () => {
+    clearTimeout(timer);
+    const rua = document.getElementById('endereco').value.trim();
+    const cidade = document.getElementById('cidade').value.trim() || '';
+    const box = document.getElementById('sugestoes');
+    if(rua.length < 3){ box.style.display = 'none'; return; }
+    timer = setTimeout(async () => {
+      try{
+        const q = cidade ? rua + ', ' + cidade + ', Brasil' : rua + ', Brasil';
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`);
+        const dados = await r.json();
+        if(!dados || !dados.length){ box.style.display = 'none'; return; }
+        box.innerHTML = dados.map(d => {
+          const addr = d.address || {};
+          const nomeRua = addr.road || addr.pedestrian || rua;
+          const bairro = addr.suburb || addr.neighbourhood || '';
+          const cidadeR = addr.city || addr.town || addr.village || cidade;
+          return `<div onclick="escolherRua('${nomeRua.replace(/'/g,'')}','${bairro.replace(/'/g,'')}','${cidadeR.replace(/'/g,'')}')"><b>${nomeRua}</b><br><small>${bairro} - ${cidadeR}</small></div>`;
+        }).join('');
+        box.style.display = 'block';
+      }catch(e){ box.style.display = 'none'; }
+    }, 400);
+  });
+
+  document.getElementById('cidade').addEventListener('blur', atualizarPreviaFrete);
+
+  window.escolherRua = function(rua, bairro, cidade) {
+    document.getElementById('endereco').value = rua;
+    if(bairro) document.getElementById('bairro').value = bairro;
+    if(cidade) document.getElementById('cidade').value = cidade;
+    document.getElementById('sugestoes').style.display = 'none';
     document.getElementById('numero').focus();
     atualizarPreviaFrete();
-  }catch(e){document.getElementById('cepMsg').innerText='';}
-});
+  };
 
-let timer;
-document.getElementById('endereco').addEventListener('input',()=>{
-  clearTimeout(timer);
-  const rua=document.getElementById('endereco').value.trim();
-  const cidade=document.getElementById('cidade').value.trim()||'';
-  const box=document.getElementById('sugestoes');
-  if(rua.length<3){box.style.display='none';return;}
-  timer=setTimeout(async()=>{
-    try{
-      const q = cidade ? rua + ', ' + cidade + ', Brasil' : rua + ', Brasil';
-      const r=await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`);
-      const dados=await r.json();
-      if(!dados||!dados.length){box.style.display='none';return;}
-      box.innerHTML=dados.map(d=>{
-        const addr=d.address||{};
-        const nomeRua=addr.road||addr.pedestrian||rua;
-        const bairro=addr.suburb||addr.neighbourhood||'';
-        const cidadeR=addr.city||addr.town||addr.village||cidade;
-        return `<div onclick="escolherRua('${nomeRua.replace(/'/g,'')}','${bairro.replace(/'/g,'')}','${cidadeR.replace(/'/g,'')}')"><b>${nomeRua}</b><br><small>${bairro} - ${cidadeR}</small></div>`;
-      }).join('');
-      box.style.display='block';
-    }catch(e){box.style.display='none';}
-  },400);
-});
-
-document.getElementById('cidade').addEventListener('blur', atualizarPreviaFrete);
-
-function escolherRua(rua,bairro,cidade){
-  document.getElementById('endereco').value=rua;
-  if(bairro) document.getElementById('bairro').value=bairro;
-  if(cidade) document.getElementById('cidade').value=cidade;
-  document.getElementById('sugestoes').style.display='none';
-  document.getElementById('numero').focus();
-  atualizarPreviaFrete();
-}
-
-async function obterCoordenadas(enderecoTexto, cidadeTexto){
-  const tentativas = [
-    `${enderecoTexto}, ${cidadeTexto}, SP, Brasil`,
-    `${enderecoTexto.split('-')[0].trim()}, ${cidadeTexto}, SP, Brasil`,
-    `${cidadeTexto}, SP, Brasil`
-  ];
-  for(const query of tentativas){
-    try{
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`);
-      const d = await r.json();
-      if(d && d[0]) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) };
-    }catch(e){}
+  async function obterCoordenadas(enderecoTexto, cidadeTexto) {
+    const tentativas = [
+      `${enderecoTexto}, ${cidadeTexto}, SP, Brasil`,
+      `${enderecoTexto.split('-')[0].trim()}, ${cidadeTexto}, SP, Brasil`,
+      `${cidadeTexto}, SP, Brasil`
+    ];
+    for(const query of tentativas){
+      try{
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`);
+        const d = await r.json();
+        if(d && d[0]) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) };
+      }catch(e){}
+    }
+    return null;
   }
-  return null;
-}
 
-async function calcularKm(enderecoEntrega, cidadeEntrega){
-  const retiradaTexto = loja.endereco_retirada || loja.endereco || '';
-  const cidadeLojaTexto = loja.cidade || cidadeSalva || 'Meridiano';
+  async function calcularKm(enderecoEntrega, cidadeEntrega) {
+    const retiradaTexto = loja.endereco_retirada || loja.endereco || '';
+    const cidadeLojaTexto = loja.cidade || cidadeSalva || 'Meridiano';
 
-  const coordLoja = await obterCoordenadas(retiradaTexto, cidadeLojaTexto);
-  const coordDestino = await obterCoordenadas(enderecoEntrega, cidadeEntrega);
+    const coordLoja = await obterCoordenadas(retiradaTexto, cidadeLojaTexto);
+    const coordDestino = await obterCoordenadas(enderecoEntrega, cidadeEntrega);
 
-  if(coordLoja && coordDestino){
-    try{
-      const urlOsrm = `https://router.project-osrm.org/route/v1/driving/${coordLoja.lng},${coordLoja.lat};${coordDestino.lng},${coordDestino.lat}?overview=false`;
-      const r = await fetch(urlOsrm);
-      const d = await r.json();
-      if(d.routes && d.routes[0]){
-        return Math.max(1, Math.round((d.routes[0].distance / 1000) * 10) / 10);
-      }
-    }catch(e){}
+    if(coordLoja && coordDestino){
+      try{
+        const urlOsrm = `https://router.project-osrm.org/route/v1/driving/${coordLoja.lng},${coordLoja.lat};${coordDestino.lng},${coordDestino.lat}?overview=false`;
+        const r = await fetch(urlOsrm);
+        const d = await r.json();
+        if(d.routes && d.routes[0]){
+          return Math.max(1, Math.round((d.routes[0].distance / 1000) * 10) / 10);
+        }
+      }catch(e){}
 
-    const R=6371, dLat=(coordDestino.lat-coordLoja.lat)*Math.PI/180, dLon=(coordDestino.lng-coordLoja.lng)*Math.PI/180;
-    const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(coordLoja.lat*Math.PI/180)*Math.cos(coordDestino.lat*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
-    const distReta = R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-    return Math.max(1, Math.round((distReta * 1.3) * 10) / 10);
+      const R = 6371, dLat = (coordDestino.lat - coordLoja.lat) * Math.PI / 180, dLon = (coordDestino.lng - coordLoja.lng) * Math.PI / 180;
+      const a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(coordLoja.lat*Math.PI/180)*Math.cos(coordDestino.lat*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+      const distReta = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return Math.max(1, Math.round((distReta * 1.3) * 10) / 10);
+    }
+    return 3;
   }
-  return 3;
-}
 
-async function atualizarPreviaFrete(){
-  const endereco = document.getElementById('endereco').value.trim();
-  const cidade = document.getElementById('cidade').value.trim();
-  if(!endereco || !cidade) return;
-  
-  const box = document.getElementById('fretePreview');
-  box.style.display='block';
-  box.innerText = '🚚 Calculando rota e frete...';
-
-  let chovendo = false, pico = false;
-  try{
-    const {data: cfg} = await window.supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
-    chovendo = cfg?.chovendo || false;
-    pico = cfg?.horario_pico || false;
-  }catch(e){}
-
-  const km = await calcularKm(endereco, cidade);
-  const valores = calcularValoresFrete(km, chovendo, pico, false);
-  
-  let tags = [];
-  if(chovendo) tags.push('🌧️ Chuva');
-  if(pico) tags.push('🔥 Horário de Pico');
-
-  box.innerHTML = `🚚 Rota estimada: <b>${km} km</b> | Frete Loja: <b>R$ ${valores.valorLoja.toFixed(2)}</b> ${tags.length ? '(' + tags.join(' + ') + ')' : ''}`;
-}
-
-async function criar(){
-  const btn = document.getElementById('btnCriar');
-  btn.disabled = true; btn.innerText = 'Calculando rota e criando...';
-
-  try {
-    const cliente = document.getElementById('cliente').value.trim();
-    let whatsappCliente = soNumeros(document.getElementById('whatsappCliente').value);
+  async function atualizarPreviaFrete() {
     const endereco = document.getElementById('endereco').value.trim();
-    const cep = document.getElementById('cep').value;
-    const bairro = document.getElementById('bairro').value;
     const cidade = document.getElementById('cidade').value.trim();
-    const numero = document.getElementById('numero').value;
-    const valor = document.getElementById('valor').value;
-    const agendadoInput = document.getElementById('agendadoPara').value;
-    const obs = document.getElementById('obs').value;
+    if(!endereco || !cidade) return;
     
-    if(!cliente || !whatsappCliente || !endereco || !valor || !cidade) {
-      alert('Preencha cliente, WhatsApp, endereço, cidade e valor do pedido.');
-      btn.disabled = false; btn.innerText = '+ Criar Solicitação de Entrega';
-      return;
-    }
+    const box = document.getElementById('fretePreview');
+    box.style.display = 'block';
+    box.innerText = '🚚 Calculando rota e frete...';
 
-    if(!whatsappCliente.startsWith('55') && whatsappCliente.length <= 11){
-      whatsappCliente = '55' + whatsappCliente;
-    }
-    
-    const codigoEntrega = Math.floor(1000 + Math.random()*9000).toString();
-    const codigoRetirada = Math.floor(1000 + Math.random()*9000).toString();
-    
     let chovendo = false, pico = false;
     try{
-      const {data: cfg} = await window.supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
+      const {data: cfg} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
       chovendo = cfg?.chovendo || false;
       pico = cfg?.horario_pico || false;
     }catch(e){}
-    
-    const kmEst = await calcularKm(endereco + (numero ? ', ' + numero : ''), cidade);
-    const valores = calcularValoresFrete(kmEst, chovendo, pico, false);
 
-    const statusInicial = agendadoInput ? 'agendado' : 'pendente';
-    const agendadoISO = agendadoInput ? new Date(agendadoInput).toISOString() : null;
+    const km = await calcularKm(endereco, cidade);
+    const valores = calcularValoresFrete(km, chovendo, pico, false);
     
-    const {data: novaEntrega, error} = await window.supabaseClient.from('entregas').insert([{
-      loja_id: loja.id, loja_nome: loja.nome_fantasia || loja.nome,
-      cliente_nome: cliente, whatsapp_cliente: whatsappCliente,
-      endereco: endereco + (numero ? ' - ' + numero : ''), cep, bairro, cidade,
-      endereco_retirada: loja.endereco_retirada || loja.endereco,
-      valor: parseFloat(valor.replace(',','.')), 
-      valor_frete_loja: valores.valorLoja,
-      valor_motoboy: valores.valorMotoboy, 
-      distancia_km: kmEst, chovendo: chovendo, horario_pico: pico,
-      agendado_para: agendadoISO,
-      observacao: obs, status: statusInicial, 
-      codigo_entrega: codigoEntrega, codigo_retirada: codigoRetirada
-    }]).select().maybeSingle();
-    
-    if(error) throw error;
-    
-    document.getElementById('codigoBox').style.display='block';
-    document.getElementById('codigoNum').innerText=codigoEntrega;
-    document.getElementById('codigoRetiradaNum').innerText=codigoRetirada;
-    
-    const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
-    const linkRastreio = `${baseUrl}/rastreio.html?id=${novaEntrega.id}`;
-    const msgZap = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido foi confirmado!\n\n🔑 *PIN de Entrega:* ${codigoEntrega} (informe ao motoboy).\n\n📍 *Acompanhe ao vivo:*\n${linkRastreio}`);
-    const urlWhats = `https://wa.me/${whatsappCliente}?text=${msgZap}`;
-    
-    document.getElementById('btnZapCliente').href = urlWhats;
+    let tags = [];
+    if(chovendo) tags.push('🌧️ Chuva');
+    if(pico) tags.push('🔥 Horário de Pico');
 
-    document.getElementById('cliente').value = '';
-    document.getElementById('whatsappCliente').value = '';
-    document.getElementById('endereco').value = '';
-    document.getElementById('numero').value = '';
-    document.getElementById('valor').value = '';
-    document.getElementById('agendadoPara').value = '';
-    document.getElementById('obs').value = '';
-
-    carregar();
-    window.open(urlWhats, '_blank');
-  } catch(e) {
-    document.getElementById('erro').innerText = 'Erro ao criar: ' + e.message;
-  } finally {
-    btn.disabled = false;
-    btn.innerText = '+ Criar Solicitação de Entrega';
+    box.innerHTML = `🚚 Rota estimada: <b>${km} km</b> | Frete Loja: <b>R$ ${valores.valorLoja.toFixed(2)}</b> ${tags.length ? '(' + tags.join(' + ') + ')' : ''}`;
   }
-}
 
-async function cancelarEntrega(id){
-  if(!confirm('Deseja realmente cancelar este pedido de entrega?')) return;
-  const {error} = await window.supabaseClient.from('entregas').update({status:'cancelado', cancelada_em: new Date().toISOString()}).eq('id',id).in('status',['pendente','agendado']);
-  if(error) return alert('Não é possível cancelar uma entrega que já foi aceita.');
-  alert('Entrega cancelada.');
-  carregar();
-}
+  window.criar = async function() {
+    const btn = document.getElementById('btnCriar');
+    btn.disabled = true; btn.innerText = 'Calculando rota e criando...';
 
-async function avaliarMotoboy(entregaId, nota){
-  await window.supabaseClient.from('entregas').update({avaliacao_motoboy: nota}).eq('id', entregaId);
-  carregar();
-}
+    try {
+      const cliente = document.getElementById('cliente').value.trim();
+      let whatsappCliente = soNumeros(document.getElementById('whatsappCliente').value);
+      const endereco = document.getElementById('endereco').value.trim();
+      const cep = document.getElementById('cep').value;
+      const bairro = document.getElementById('bairro').value;
+      const cidade = document.getElementById('cidade').value.trim();
+      const numero = document.getElementById('numero').value;
+      const valor = document.getElementById('valor').value;
+      const agendadoInput = document.getElementById('agendadoPara').value;
+      const obs = document.getElementById('obs').value;
+      
+      if(!cliente || !whatsappCliente || !endereco || !valor || !cidade) {
+        alert('Preencha cliente, WhatsApp, endereço, cidade e valor do pedido.');
+        btn.disabled = false; btn.innerText = '+ Criar Solicitação de Entrega';
+        return;
+      }
 
-async function carregar(){
-  try{
-    const {data} = await window.supabaseClient.from('entregas').select('*').eq('loja_id', loja.id).order('created_at',{ascending:false});
-    
-    const agoraMs = Date.now();
-    for(const e of (data||[])){
-      if(e.status === 'agendado' && e.agendado_para){
-        const alvoMs = new Date(e.agendado_para).getTime();
-        if(alvoMs - agoraMs <= 15 * 60 * 1000){
-          await window.supabaseClient.from('entregas').update({status: 'pendente'}).eq('id', e.id);
-          e.status = 'pendente';
+      if(!whatsappCliente.startsWith('55') && whatsappCliente.length <= 11){
+        whatsappCliente = '55' + whatsappCliente;
+      }
+      
+      const codigoEntrega = Math.floor(1000 + Math.random()*9000).toString();
+      const codigoRetirada = Math.floor(1000 + Math.random()*9000).toString();
+      
+      let chovendo = false, pico = false;
+      try{
+        const {data: cfg} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
+        chovendo = cfg?.chovendo || false;
+        pico = cfg?.horario_pico || false;
+      }catch(e){}
+      
+      const kmEst = await calcularKm(endereco + (numero ? ', ' + numero : ''), cidade);
+      const valores = calcularValoresFrete(kmEst, chovendo, pico, false);
+
+      const statusInicial = agendadoInput ? 'agendado' : 'pendente';
+      const agendadoISO = agendadoInput ? new Date(agendadoInput).toISOString() : null;
+      
+      const {data: novaEntrega, error} = await supabaseClient.from('entregas').insert([{
+        loja_id: loja.id, loja_nome: loja.nome_fantasia || loja.nome,
+        cliente_nome: cliente, whatsapp_cliente: whatsappCliente,
+        endereco: endereco + (numero ? ' - ' + numero : ''), cep, bairro, cidade,
+        endereco_retirada: loja.endereco_retirada || loja.endereco,
+        valor: parseFloat(valor.replace(',','.')), 
+        valor_frete_loja: valores.valorLoja,
+        valor_motoboy: valores.valorMotoboy, 
+        distancia_km: kmEst, chovendo: chovendo, horario_pico: pico,
+        agendado_para: agendadoISO,
+        observacao: obs, status: statusInicial, 
+        codigo_entrega: codigoEntrega, codigo_retirada: codigoRetirada
+      }]).select().maybeSingle();
+      
+      if(error) throw error;
+      
+      document.getElementById('codigoBox').style.display = 'block';
+      document.getElementById('codigoNum').innerText = codigoEntrega;
+      document.getElementById('codigoRetiradaNum').innerText = codigoRetirada;
+      
+      const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+      const linkRastreio = `${baseUrl}/rastreio.html?id=${novaEntrega.id}`;
+      const msgZap = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido foi confirmado!\n\n🔑 *PIN de Entrega:* ${codigoEntrega} (informe ao motoboy).\n\n📍 *Acompanhe ao vivo:*\n${linkRastreio}`);
+      const urlWhats = `https://wa.me/${whatsappCliente}?text=${msgZap}`;
+      
+      document.getElementById('btnZapCliente').href = urlWhats;
+
+      document.getElementById('cliente').value = '';
+      document.getElementById('whatsappCliente').value = '';
+      document.getElementById('endereco').value = '';
+      document.getElementById('numero').value = '';
+      document.getElementById('valor').value = '';
+      document.getElementById('agendadoPara').value = '';
+      document.getElementById('obs').value = '';
+
+      carregar();
+      window.open(urlWhats, '_blank');
+    } catch(e) {
+      document.getElementById('erro').innerText = 'Erro ao criar: ' + e.message;
+    } finally {
+      btn.disabled = false;
+      btn.innerText = '+ Criar Solicitação de Entrega';
+    }
+  };
+
+  window.cancelarEntrega = async function(id) {
+    if(!confirm('Deseja realmente cancelar este pedido de entrega?')) return;
+    const {error} = await supabaseClient.from('entregas').update({status:'cancelado', cancelada_em: new Date().toISOString()}).eq('id',id).in('status',['pendente','agendado']);
+    if(error) return alert('Não é possível cancelar uma entrega que já foi aceita.');
+    alert('Entrega cancelada.');
+    carregar();
+  };
+
+  window.avaliarMotoboy = async function(entregaId, nota) {
+    await supabaseClient.from('entregas').update({avaliacao_motoboy: nota}).eq('id', entregaId);
+    carregar();
+  };
+
+  async function carregar() {
+    try{
+      const {data} = await supabaseClient.from('entregas').select('*').eq('loja_id', loja.id).order('created_at',{ascending:false});
+      
+      const agoraMs = Date.now();
+      for(const e of (data||[])){
+        if(e.status === 'agendado' && e.agendado_para){
+          const alvoMs = new Date(e.agendado_para).getTime();
+          if(alvoMs - agoraMs <= 15 * 60 * 1000){
+            await supabaseClient.from('entregas').update({status: 'pendente'}).eq('id', e.id);
+            e.status = 'pendente';
+          }
         }
       }
-    }
 
-    const ativos = (data||[]).filter(e => ['agendado','pendente','aceita','retirada'].includes(e.status));
-    const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
-    
-    document.getElementById('lista').innerHTML = ativos.map(e=>{
-      const linkR = `${baseUrl}/rastreio.html?id=${e.id}`;
-      const msgZ = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido saiu para entrega!\n\n🔑 *PIN de Entrega:* ${e.codigo_entrega}\n📍 *Rastreio:* ${linkR}`);
-      const horaAgend = e.agendado_para ? new Date(e.agendado_para).toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'}) : '';
+      const ativos = (data||[]).filter(e => ['agendado','pendente','aceita','retirada'].includes(e.status));
+      const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+      
+      document.getElementById('lista').innerHTML = ativos.map(e => {
+        const linkR = `${baseUrl}/rastreio.html?id=${e.id}`;
+        const msgZ = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido saiu para entrega!\n\n🔑 *PIN de Entrega:* ${e.codigo_entrega}\n📍 *Rastreio:* ${linkR}`);
+        const horaAgend = e.agendado_para ? new Date(e.agendado_para).toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'}) : '';
 
-      return `
-      <div class="item"><b>${e.cliente_nome}</b> - Pedido: R$ ${(e.valor||0).toFixed(2)}<br>
-      <span class="small">${e.endereco} - ${e.bairro||''} - ${e.cidade||''} (${e.distancia_km||'?'} km)</span><br>
-      <span class="badge">${e.status.toUpperCase()}</span> ${horaAgend ? `<small style="color:#1976d2;font-weight:700">⏰ Agendado: ${horaAgend}</small>` : ''} | <small>Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} ${e.chovendo?'(Chuva) ':''}${e.horario_pico?'(Pico) ':''}</small>
-      ${e.codigo_entrega ? `<br><b style="color:#ff5a00">🔑 PIN Cliente: ${e.codigo_entrega}</b> | <b>PIN Retirada: ${e.codigo_retirada||'N/A'}</b>` : ''}
-      ${e.motoboy_nome ? `<br><small>🛵 Motoboy: <b>${e.motoboy_nome}</b> (Placa: ${e.motoboy_placa||'N/A'})</small>` : ''}
-      ${e.whatsapp_cliente ? `<br><a href="https://wa.me/${e.whatsapp_cliente}?text=${msgZ}" target="_blank" style="display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#00a650;text-decoration:none">📲 Reenviar ZAP ao Cliente</a>` : ''}
-      ${['pendente','agendado'].includes(e.status) ? `<button class="btn btn-red" style="margin-top:8px;padding:8px" onclick="cancelarEntrega('${e.id}')">❌ Cancelar Pedido</button>` : ''}
-      </div>`;
-    }).join('')||'<p class="small">Nenhuma entrega ativa no momento.</p>';
-    
-    const historico = (data||[]).filter(e => ['entregue','cancelado'].includes(e.status));
-    let totalAberto = 0;
-    historico.forEach(e => { if(e.status==='entregue' && !e.pago_loja) totalAberto += Number(e.valor_frete_loja||0); });
-    
-    document.getElementById('extratoLoja').innerHTML = `
-      Total de entregas concluídas: ${historico.filter(e=>e.status==='entregue').length}<br>
-      <b>Saldo em aberto a repassar à plataforma: R$ ${totalAberto.toFixed(2)}</b>
-    `;
-    
-    document.getElementById('historicoLoja').innerHTML = historico.map(e=>`
-      <div class="item" style="background:#fff;padding:10px;margin-top:6px">
-        <b>${e.cliente_nome}</b> - R$ ${(e.valor||0).toFixed(2)}<br>
-        <span class="badge" style="background:${e.status==='entregue'?'#dcfce7':'#fee2e2'};color:${e.status==='entregue'?'#166534':'#991b1b'}">${e.status.toUpperCase()}</span>
-        ${e.pago_loja ? '<span class="badge" style="background:#dbeafe;color:#1e40af">PAGO</span>' : ''}
-        <small style="display:block;color:#666;margin-top:4px">Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} | Motoboy: ${e.motoboy_nome||'N/A'}</small>
-        ${e.status==='entregue' && e.motoboy_id ? `
-          <div class="estrelas" style="margin-top:6px">
-            <small>Avaliar Motoboy: </small>
-            ${[1,2,3,4,5].map(n => `<span onclick="avaliarMotoboy('${e.id}', ${n})">${(e.avaliacao_motoboy||0) >= n ? '⭐' : '☆'}</span>`).join('')}
-          </div>
-        ` : ''}
-      </div>`).join('')||'<p class="small">Nenhum pedido no histórico.</p>';
-  }catch(e){}
-}
+        return `
+        <div class="item"><b>${e.cliente_nome}</b> - Pedido: R$ ${(e.valor||0).toFixed(2)}<br>
+        <span class="small">${e.endereco} - ${e.bairro||''} - ${e.cidade||''} (${e.distancia_km||'?'} km)</span><br>
+        <span class="badge">${e.status.toUpperCase()}</span> ${horaAgend ? `<small style="color:#1976d2;font-weight:700">⏰ Agendado: ${horaAgend}</small>` : ''} | <small>Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} ${e.chovendo?'(Chuva) ':''}${e.horario_pico?'(Pico) ':''}</small>
+        ${e.codigo_entrega ? `<br><b style="color:#ff5a00">🔑 PIN Cliente: ${e.codigo_entrega}</b> | <b>PIN Retirada: ${e.codigo_retirada||'N/A'}</b>` : ''}
+        ${e.motoboy_nome ? `<br><small>🛵 Motoboy: <b>${e.motoboy_nome}</b> (Placa: ${e.motoboy_placa||'N/A'})</small>` : ''}
+        ${e.whatsapp_cliente ? `<br><a href="https://wa.me/${e.whatsapp_cliente}?text=${msgZ}" target="_blank" style="display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#00a650;text-decoration:none">📲 Reenviar ZAP ao Cliente</a>` : ''}
+        ${['pendente','agendado'].includes(e.status) ? `<button class="btn btn-red" style="margin-top:8px;padding:8px" onclick="cancelarEntrega('${e.id}')">❌ Cancelar Pedido</button>` : ''}
+        </div>`;
+      }).join('') || '<p class="small">Nenhuma entrega ativa no momento.</p>';
+      
+      const historico = (data||[]).filter(e => ['entregue','cancelado'].includes(e.status));
+      let totalAberto = 0;
+      historico.forEach(e => { if(e.status==='entregue' && !e.pago_loja) totalAberto += Number(e.valor_frete_loja||0); });
+      
+      document.getElementById('extratoLoja').innerHTML = `
+        Total de entregas concluídas: ${historico.filter(e=>e.status==='entregue').length}<br>
+        <b>Saldo em aberto a repassar à plataforma: R$ ${totalAberto.toFixed(2)}</b>
+      `;
+      
+      document.getElementById('historicoLoja').innerHTML = historico.map(e => `
+        <div class="item" style="background:#fff;padding:10px;margin-top:6px">
+          <b>${e.cliente_nome}</b> - R$ ${(e.valor||0).toFixed(2)}<br>
+          <span class="badge" style="background:${e.status==='entregue'?'#dcfce7':'#fee2e2'};color:${e.status==='entregue'?'#166534':'#991b1b'}">${e.status.toUpperCase()}</span>
+          ${e.pago_loja ? '<span class="badge" style="background:#dbeafe;color:#1e40af">PAGO</span>' : ''}
+          <small style="display:block;color:#666;margin-top:4px">Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} | Motoboy: ${e.motoboy_nome||'N/A'}</small>
+          ${e.status==='entregue' && e.motoboy_id ? `
+            <div class="estrelas" style="margin-top:6px">
+              <small>Avaliar Motoboy: </small>
+              ${[1,2,3,4,5].map(n => `<span onclick="avaliarMotoboy('${e.id}', ${n})">${(e.avaliacao_motoboy||0) >= n ? '⭐' : '☆'}</span>`).join('')}
+            </div>
+          ` : ''}
+        </div>`).join('') || '<p class="small">Nenhum pedido no histórico.</p>';
+    }catch(e){}
+  }
 
-async function salvarSenhaLoja(){
-  const nova = document.getElementById('novaSenhaLoja').value;
-  if(!nova || nova.length < 4) return alert('Digite uma senha válida');
-  const {error} = await window.supabaseClient.from('lojas').update({senha: nova}).eq('id', loja.id);
-  if(error) return alert('Erro: '+error.message);
-  alert('Senha alterada com sucesso!');
-  document.getElementById('novaSenhaLoja').value='';
-}
+  window.salvarSenhaLoja = async function() {
+    const nova = document.getElementById('novaSenhaLoja').value;
+    if(!nova || nova.length < 4) return alert('Digite uma senha válida');
+    const {error} = await supabaseClient.from('lojas').update({senha: nova}).eq('id', loja.id);
+    if(error) return alert('Erro: '+error.message);
+    alert('Senha alterada com sucesso!');
+    document.getElementById('novaSenhaLoja').value='';
+  };
 
-carregar();
-setInterval(carregar, 10000);
+  carregar();
+  setInterval(carregar, 10000);
 </script>
 </body></html>
