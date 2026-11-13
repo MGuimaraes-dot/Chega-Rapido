@@ -1,7 +1,12 @@
-<!DOCTYPE html><html lang="pt-BR"><head>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EntreAqui - Painel Loja</title>
-<style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
+<!-- SDK do Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
 header{background:#ff5a00;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:22px;position:relative}
 .btn-config{position:absolute;right:16px;top:50%;transform:translateY(-50%);background:none;border:0;color:#fff;font-size:22px;cursor:pointer}
 .card{max-width:480px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
@@ -21,7 +26,9 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 .config-content{background:#fff;width:90%;max-width:440px;border-radius:16px;padding:20px;max-height:85vh;overflow-y:auto}
 .frete-info{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;padding:10px;border-radius:10px;font-size:13px;margin-top:8px;font-weight:700}
 .estrelas span{font-size:20px;cursor:pointer;margin-right:4px}
-</style></head><body>
+</style>
+</head>
+<body>
 <header>
   📦 ENTREAQUI - LOJA
   <button class="btn-config" onclick="abrirConfig(true)" title="Configurações">⚙️</button>
@@ -94,6 +101,7 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 
   window.abrirConfig = function(abrir) {
     document.getElementById('modalConfig').style.display = abrir ? 'flex' : 'none';
+    if(abrir) carregarExtratoLoja();
   };
 
   window.sairDaConta = function() {
@@ -344,3 +352,71 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
   window.avaliarMotoboy = async function(entregaId, nota) {
     await supabaseClient.from('entregas').update({avaliacao_motoboy: nota}).eq('id', entregaId);
     carregar();
+  };
+
+  window.salvarSenhaLoja = async function() {
+    const nova = document.getElementById('novaSenhaLoja').value.trim();
+    if(!nova) return alert('Digite a nova senha.');
+    const {error} = await supabaseClient.from('lojas').update({senha: nova}).eq('id', loja.id);
+    if(error) return alert('Erro ao atualizar senha.');
+    alert('Senha atualizada com sucesso!');
+    document.getElementById('novaSenhaLoja').value = '';
+  };
+
+  async function carregarExtratoLoja() {
+    const {data: ent} = await supabaseClient.from('entregas').select('*').eq('loja_id', loja.id).order('created_at', {ascending: false});
+    const concluidas = (ent || []).filter(e => e.status === 'entregue');
+    let totalFretes = 0;
+    concluidas.forEach(e => totalFretes += Number(e.valor_frete_loja || 0));
+
+    document.getElementById('extratoLoja').innerHTML = `
+      • Total de Entregas Realizadas: <b>${concluidas.length}</b><br>
+      • Valor Acumulado em Fretes: <b>R$ ${totalFretes.toFixed(2)}</b>
+    `;
+
+    document.getElementById('historicoLoja').innerHTML = (ent || []).map(e => `
+      <div class="item">
+        <b>${e.cliente_nome}</b> - <span class="badge">${e.status.toUpperCase()}</span><br>
+        <small>Frete: R$ ${Number(e.valor_frete_loja||0).toFixed(2)} | Data: ${(e.created_at||'').replace('T',' ').substring(0,16)}</small>
+        ${e.status === 'entregue' && !e.avaliacao_motoboy ? `
+          <div class="estrelas" style="margin-top:6px">
+            Avaliar Motoboy: 
+            <span onclick="avaliarMotoboy('${e.id}', 1)">⭐</span>
+            <span onclick="avaliarMotoboy('${e.id}', 2)">⭐</span>
+            <span onclick="avaliarMotoboy('${e.id}', 3)">⭐</span>
+            <span onclick="avaliarMotoboy('${e.id}', 4)">⭐</span>
+            <span onclick="avaliarMotoboy('${e.id}', 5)">⭐</span>
+          </div>
+        ` : e.avaliacao_motoboy ? `<br><small>⭐ Nota dada: ${e.avaliacao_motoboy}/5</small>` : ''}
+      </div>
+    `).join('') || '<p style="color:#666;font-size:13px">Nenhum histórico encontrado.</p>';
+  }
+
+  async function carregar() {
+    try {
+      const {data: lista} = await supabaseClient.from('entregas').select('*').eq('loja_id', loja.id).in('status',['pendente','agendado','aceita','coletada','em_andamento']).order('created_at', {ascending:false});
+      
+      const div = document.getElementById('lista');
+      if(!lista || !lista.length){
+        div.innerHTML = '<p style="color:#666;font-size:13px">Nenhum pedido ativo no momento.</p>';
+        return;
+      }
+
+      div.innerHTML = lista.map(e => `
+        <div class="item">
+          <b>${e.cliente_nome}</b> - <span class="badge">${e.status.toUpperCase()}</span><br>
+          <small>Endereço: ${e.endereco} (${e.bairro} - ${e.cidade})</small><br>
+          <small>Frete: R$ ${Number(e.valor_frete_loja||0).toFixed(2)} | PIN Entrega: <b>${e.codigo_entrega||'-'}</b></small><br>
+          ${['pendente','agendado'].includes(e.status) ? `<button class="btn btn-red" style="padding:6px 10px;font-size:12px;margin-top:6px" onclick="cancelarEntrega('${e.id}')">❌ Cancelar Pedido</button>` : ''}
+        </div>
+      `).join('');
+    } catch(err){
+      console.error(err);
+    }
+  }
+
+  carregar();
+  setInterval(carregar, 10000); // Atualiza a lista a cada 10s
+</script>
+</body>
+</html>
