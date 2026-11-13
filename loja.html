@@ -20,8 +20,9 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 #sugestoes div{padding:10px;border-bottom:1px solid #eee;cursor:pointer;font-size:13px}
 #sugestoes div:hover{background:#fff5ef}
 .config-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center}
-.config-content{background:#fff;width:90%;max-width:420px;border-radius:16px;padding:20px;max-height:85vh;overflow-y:auto}
+.config-content{background:#fff;width:90%;max-width:440px;border-radius:16px;padding:20px;max-height:85vh;overflow-y:auto}
 .frete-info{background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;padding:10px;border-radius:10px;font-size:13px;margin-top:8px;font-weight:700}
+.estrelas span{font-size:20px;cursor:pointer;margin-right:4px}
 </style></head><body>
 <header>
   📦 ENTREAQUI - LOJA
@@ -42,8 +43,8 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
     <h3 style="font-size:15px;margin-top:20px">Extrato Financeiro</h3>
     <div id="extratoLoja" style="font-size:13px;color:#333">Calculando...</div>
     
-    <h3 style="font-size:14px;margin-top:16px">📜 Histórico de Pedidos</h3>
-    <div id="historicoLoja" style="max-height:180px;overflow-y:auto"></div>
+    <h3 style="font-size:14px;margin-top:16px">📜 Histórico & Avaliação de Entregadores</h3>
+    <div id="historicoLoja" style="max-height:240px;overflow-y:auto"></div>
     
     <button class="btn btn-gray" onclick="localStorage.clear();location.href='index.html'" style="margin-top:20px">Sair da Conta</button>
   </div>
@@ -59,11 +60,13 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 
 <label>Nome do cliente *</label><input id="cliente" placeholder="Ex: João Silva">
 <label>WhatsApp do cliente * (Ex: 17999999999)</label><input id="whatsappCliente" placeholder="DDD + Número" inputmode="tel">
-<label>CEP (Opcional, ajuda a achar a rua)</label><input id="cep" placeholder="Somente números" maxlength="9" inputmode="numeric"><small id="cepMsg" style="color:#00a650;font-size:12px"></small>
+<label>CEP (Opcional)</label><input id="cep" placeholder="Somente números" maxlength="9" inputmode="numeric"><small id="cepMsg" style="color:#00a650;font-size:12px"></small>
 <label>Endereço de Entrega *</label><input id="endereco" placeholder="Digite a rua..." autocomplete="off"><div id="sugestoes"></div>
 <div class="row"><div><label>Número</label><input id="numero" placeholder="123"></div><div><label>Bairro</label><input id="bairro"></div></div>
 <label>Cidade *</label><input id="cidade" placeholder="Cidade de entrega">
 <label>Valor do Pedido R$ * (Pago pelo cliente na loja)</label><input id="valor" placeholder="0.00" inputmode="decimal">
+<label>⏰ Agendar Entrega (Deixe em branco para entrega imediata)</label>
+<input id="agendadoPara" type="datetime-local">
 <label>Observação / O que vai ser entregue</label><textarea id="obs" rows="2" placeholder="Ex: 1x Pizza de Calabresa..."></textarea>
 
 <div id="fretePreview" class="frete-info" style="display:none">🚚 Calculando distância real...</div>
@@ -77,7 +80,7 @@ input,textarea{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;
 
 <button id="btnCriar" class="btn btn-orange" onclick="criar()">+ Criar Solicitação de Entrega</button>
 
-<h3 style="font-size:15px;margin-top:22px">🚀 Pedidos Ativos na Praça</h3>
+<h3 style="font-size:15px;margin-top:22px">🚀 Pedidos Ativos & Agendados</h3>
 <div id="lista" style="margin-top:8px"></div><div id="erro" style="color:red;margin-top:10px;font-size:13px"></div>
 </div>
 
@@ -160,7 +163,6 @@ function escolherRua(rua,bairro,cidade){
   atualizarPreviaFrete();
 }
 
-// Busca coordenadas precisas em cascata (Endereço exato -> Rua + Cidade -> Cidade)
 async function obterCoordenadas(enderecoTexto, cidadeTexto){
   const tentativas = [
     `${enderecoTexto}, ${cidadeTexto}, SP, Brasil`,
@@ -177,7 +179,6 @@ async function obterCoordenadas(enderecoTexto, cidadeTexto){
   return null;
 }
 
-// Calcula distância real pela rua/rodovia via OSRM (fallback Haversine * 1.3)
 async function calcularKm(enderecoEntrega, cidadeEntrega){
   const retiradaTexto = loja.endereco_retirada || loja.endereco || '';
   const cidadeLojaTexto = loja.cidade || cidadeSalva || 'Meridiano';
@@ -195,7 +196,6 @@ async function calcularKm(enderecoEntrega, cidadeEntrega){
       }
     }catch(e){}
 
-    // Fallback linha reta com fator de correção de rua (1.3x)
     const R=6371, dLat=(coordDestino.lat-coordLoja.lat)*Math.PI/180, dLon=(coordDestino.lng-coordLoja.lng)*Math.PI/180;
     const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(coordLoja.lat*Math.PI/180)*Math.cos(coordDestino.lat*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
     const distReta = R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
@@ -213,13 +213,21 @@ async function atualizarPreviaFrete(){
   box.style.display='block';
   box.innerText = '🚚 Calculando rota e frete...';
 
-  let chovendo=false;
-  try{ const {data: cfg} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle(); chovendo = cfg?.chovendo||false; }catch(e){}
+  let chovendo = false, pico = false;
+  try{
+    const {data: cfg} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
+    chovendo = cfg?.chovendo || false;
+    pico = cfg?.horario_pico || false;
+  }catch(e){}
 
   const km = await calcularKm(endereco, cidade);
-  const valores = calcularValoresFrete(km, chovendo);
+  const valores = calcularValoresFrete(km, chovendo, pico, false);
   
-  box.innerHTML = `🚚 Rota estimada: <b>${km} km</b> | Frete Loja: <b>R$ ${valores.valorLoja.toFixed(2)}</b> ${chovendo ? '(🌧️ Com taxa de chuva)' : ''}`;
+  let tags = [];
+  if(chovendo) tags.push('🌧️ Chuva');
+  if(pico) tags.push('🔥 Horário de Pico');
+
+  box.innerHTML = `🚚 Rota estimada: <b>${km} km</b> | Frete Loja: <b>R$ ${valores.valorLoja.toFixed(2)}</b> ${tags.length ? '(' + tags.join(' + ') + ')' : ''}`;
 }
 
 async function criar(){
@@ -235,6 +243,7 @@ async function criar(){
     const cidade = document.getElementById('cidade').value.trim();
     const numero = document.getElementById('numero').value;
     const valor = document.getElementById('valor').value;
+    const agendadoInput = document.getElementById('agendadoPara').value;
     const obs = document.getElementById('obs').value;
     
     if(!cliente || !whatsappCliente || !endereco || !valor || !cidade) {
@@ -250,11 +259,19 @@ async function criar(){
     const codigoEntrega = Math.floor(1000 + Math.random()*9000).toString();
     const codigoRetirada = Math.floor(1000 + Math.random()*9000).toString();
     
-    let chovendo=false;
-    try{ const {data: cfg} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle(); chovendo = cfg?.chovendo||false; }catch(e){}
+    let chovendo = false, pico = false;
+    try{
+      const {data: cfg} = await supabaseClient.from('config').select('*').eq('id',1).maybeSingle();
+      chovendo = cfg?.chovendo || false;
+      pico = cfg?.horario_pico || false;
+    }catch(e){}
     
     const kmEst = await calcularKm(endereco + (numero ? ', ' + numero : ''), cidade);
-    const valores = calcularValoresFrete(kmEst, chovendo);
+    const valores = calcularValoresFrete(kmEst, chovendo, pico, false);
+
+    // Define se entra como pendente imediato ou agendado
+    const statusInicial = agendadoInput ? 'agendado' : 'pendente';
+    const agendadoISO = agendadoInput ? new Date(agendadoInput).toISOString() : null;
     
     const {data: novaEntrega, error} = await supabaseClient.from('entregas').insert([{
       loja_id: loja.id, loja_nome: loja.nome_fantasia || loja.nome,
@@ -264,8 +281,9 @@ async function criar(){
       valor: parseFloat(valor.replace(',','.')), 
       valor_frete_loja: valores.valorLoja,
       valor_motoboy: valores.valorMotoboy, 
-      distancia_km: kmEst, chovendo: chovendo,
-      observacao: obs, status: 'pendente', 
+      distancia_km: kmEst, chovendo: chovendo, horario_pico: pico,
+      agendado_para: agendadoISO,
+      observacao: obs, status: statusInicial, 
       codigo_entrega: codigoEntrega, codigo_retirada: codigoRetirada
     }]).select().maybeSingle();
     
@@ -275,26 +293,22 @@ async function criar(){
     document.getElementById('codigoNum').innerText=codigoEntrega;
     document.getElementById('codigoRetiradaNum').innerText=codigoRetirada;
     
-    // Constrói URL base limpa do GitHub Pages
     const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
     const linkRastreio = `${baseUrl}/rastreio.html?id=${novaEntrega.id}`;
-    const msgZap = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido saiu para entrega!\n\n🔑 *PIN de Entrega:* ${codigoEntrega} (informe ao motoboy).\n\n📍 *Acompanhe ao vivo:*\n${linkRastreio}`);
+    const msgZap = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido foi confirmado!\n\n🔑 *PIN de Entrega:* ${codigoEntrega} (informe ao motoboy).\n\n📍 *Acompanhe ao vivo:*\n${linkRastreio}`);
     const urlWhats = `https://wa.me/${whatsappCliente}?text=${msgZap}`;
     
-    const btnZap = document.getElementById('btnZapCliente');
-    btnZap.href = urlWhats;
+    document.getElementById('btnZapCliente').href = urlWhats;
 
-    // Limpa campos do formulário
     document.getElementById('cliente').value = '';
     document.getElementById('whatsappCliente').value = '';
     document.getElementById('endereco').value = '';
     document.getElementById('numero').value = '';
     document.getElementById('valor').value = '';
+    document.getElementById('agendadoPara').value = '';
     document.getElementById('obs').value = '';
 
     carregar();
-    
-    // Abre o WhatsApp automaticamente para enviar ao cliente
     window.open(urlWhats, '_blank');
   } catch(e) {
     document.getElementById('erro').innerText = 'Erro ao criar: ' + e.message;
@@ -306,43 +320,72 @@ async function criar(){
 
 async function cancelarEntrega(id){
   if(!confirm('Deseja realmente cancelar este pedido de entrega?')) return;
-  const {error} = await supabaseClient.from('entregas').update({status:'cancelado', cancelada_em: new Date().toISOString()}).eq('id',id).eq('status','pendente');
+  const {error} = await supabaseClient.from('entregas').update({status:'cancelado', cancelada_em: new Date().toISOString()}).eq('id',id).in('status',['pendente','agendado']);
   if(error) return alert('Não é possível cancelar uma entrega que já foi aceita pelo motoboy.');
   alert('Entrega cancelada.');
+  carregar();
+}
+
+async function avaliarMotoboy(entregaId, nota){
+  await supabaseClient.from('entregas').update({avaliacao_motoboy: nota}).eq('id', entregaId);
   carregar();
 }
 
 async function carregar(){
   const {data} = await supabaseClient.from('entregas').select('*').eq('loja_id', loja.id).order('created_at',{ascending:false});
   
-  const ativos = (data||[]).filter(e => ['pendente','aceita','retirada'].includes(e.status));
+  // Libera automaticamente pedidos agendados que faltam 15 min ou menos
+  const agoraMs = Date.now();
+  for(const e of (data||[])){
+    if(e.status === 'agendado' && e.agendado_para){
+      const alvoMs = new Date(e.agendado_para).getTime();
+      if(alvoMs - agoraMs <= 15 * 60 * 1000){
+        await supabaseClient.from('entregas').update({status: 'pendente'}).eq('id', e.id);
+        e.status = 'pendente';
+      }
+    }
+  }
+
+  const ativos = (data||[]).filter(e => ['agendado','pendente','aceita','retirada'].includes(e.status));
   const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
   
   document.getElementById('lista').innerHTML = ativos.map(e=>{
     const linkR = `${baseUrl}/rastreio.html?id=${e.id}`;
     const msgZ = encodeURIComponent(`📦 *${loja.nome_fantasia || loja.nome}* - Seu pedido saiu para entrega!\n\n🔑 *PIN de Entrega:* ${e.codigo_entrega}\n📍 *Rastreio:* ${linkR}`);
+    const horaAgend = e.agendado_para ? new Date(e.agendado_para).toLocaleString('pt-BR', {dateStyle:'short', timeStyle:'short'}) : '';
+
     return `
     <div class="item"><b>${e.cliente_nome}</b> - Pedido: R$ ${(e.valor||0).toFixed(2)}<br>
     <span class="small">${e.endereco} - ${e.bairro||''} - ${e.cidade||''} (${e.distancia_km||'?'} km)</span><br>
-    <span class="badge">${e.status.toUpperCase()}</span> | <small>Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} ${e.chovendo?'(Chuva) ':''}</small>
+    <span class="badge">${e.status.toUpperCase()}</span> ${horaAgend ? `<small style="color:#1976d2;font-weight:700">⏰ Agendado: ${horaAgend}</small>` : ''} | <small>Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} ${e.chovendo?'(Chuva) ':''}${e.horario_pico?'(Pico) ':''}</small>
     ${e.codigo_entrega ? `<br><b style="color:#ff5a00">🔑 PIN Cliente: ${e.codigo_entrega}</b> | <b>PIN Retirada: ${e.codigo_retirada||'N/A'}</b>` : ''}
     ${e.motoboy_nome ? `<br><small>🛵 Motoboy: <b>${e.motoboy_nome}</b> (Placa: ${e.motoboy_placa||'N/A'})</small>` : ''}
     ${e.whatsapp_cliente ? `<br><a href="https://wa.me/${e.whatsapp_cliente}?text=${msgZ}" target="_blank" style="display:inline-block;margin-top:6px;font-size:12px;font-weight:700;color:#00a650;text-decoration:none">📲 Reenviar ZAP ao Cliente</a>` : ''}
-    ${e.status==='pendente' ? `<button class="btn btn-red" style="margin-top:8px;padding:8px" onclick="cancelarEntrega('${e.id}')">❌ Cancelar Pedido</button>` : ''}
+    ${['pendente','agendado'].includes(e.status) ? `<button class="btn btn-red" style="margin-top:8px;padding:8px" onclick="cancelarEntrega('${e.id}')">❌ Cancelar Pedido</button>` : ''}
     </div>`;
   }).join('')||'<p class="small">Nenhuma entrega ativa no momento.</p>';
   
   const historico = (data||[]).filter(e => ['entregue','cancelado'].includes(e.status));
-  let totalValor = 0;
-  historico.forEach(e => { if(e.status==='entregue') totalValor += Number(e.valor_frete_loja||0); });
+  let totalAberto = 0;
+  historico.forEach(e => { if(e.status==='entregue' && !e.pago_loja) totalAberto += Number(e.valor_frete_loja||0); });
   
-  document.getElementById('extratoLoja').innerHTML = `Total de entregas concluídas: ${historico.filter(e=>e.status==='entregue').length}<br><b>Total de fretes a pagar à plataforma: R$ ${totalValor.toFixed(2)}</b>`;
+  document.getElementById('extratoLoja').innerHTML = `
+    Total de entregas concluídas: ${historico.filter(e=>e.status==='entregue').length}<br>
+    <b>Saldo em aberto a repassar à plataforma: R$ ${totalAberto.toFixed(2)}</b>
+  `;
   
   document.getElementById('historicoLoja').innerHTML = historico.map(e=>`
-    <div class="item" style="background:#fff;padding:8px;margin-top:6px">
+    <div class="item" style="background:#fff;padding:10px;margin-top:6px">
       <b>${e.cliente_nome}</b> - R$ ${(e.valor||0).toFixed(2)}<br>
       <span class="badge" style="background:${e.status==='entregue'?'#dcfce7':'#fee2e2'};color:${e.status==='entregue'?'#166534':'#991b1b'}">${e.status.toUpperCase()}</span>
-      <small style="display:block;color:#666">Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} | Motoboy: ${e.motoboy_nome||'N/A'}</small>
+      ${e.pago_loja ? '<span class="badge" style="background:#dbeafe;color:#1e40af">PAGO</span>' : ''}
+      <small style="display:block;color:#666;margin-top:4px">Frete: R$ ${(e.valor_frete_loja||0).toFixed(2)} | Motoboy: ${e.motoboy_nome||'N/A'}</small>
+      ${e.status==='entregue' && e.motoboy_id ? `
+        <div class="estrelas" style="margin-top:6px">
+          <small>Avaliar Motoboy: </small>
+          ${[1,2,3,4,5].map(n => `<span onclick="avaliarMotoboy('${e.id}', ${n})">${(e.avaliacao_motoboy||0) >= n ? '⭐' : '☆'}</span>`).join('')}
+        </div>
+      ` : ''}
     </div>`).join('')||'<p class="small">Nenhum pedido no histórico.</p>';
 }
 
