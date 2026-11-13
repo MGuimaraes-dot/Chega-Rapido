@@ -7,7 +7,8 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>*{box-sizing:border-box;font-family:system-ui,Arial}body{margin:0;background:#fff5ef}
-header{background:#00a650;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:22px}
+header{background:#00a650;color:#fff;padding:16px;text-align:center;font-weight:900;font-size:22px;position:relative}
+.btn-config{position:absolute;right:16px;top:50%;transform:translateY(-50%);background:none;border:0;color:#fff;font-size:22px;cursor:pointer}
 .card{max-width:480px;margin:16px auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,.08)}
 .btn{width:100%;padding:14px;border:0;border-radius:12px;font-weight:800;font-size:15px;cursor:pointer;margin-top:10px}
 .btn-green{background:#00a650;color:#fff}.btn-orange{background:#ff5a00;color:#fff}.btn-gray{background:#eee;color:#333}.btn-blue{background:#1976d2;color:#fff}.btn-red{background:#fee2e2;color:#991b1b}
@@ -15,43 +16,48 @@ header{background:#00a650;color:#fff;padding:16px;text-align:center;font-weight:
 .item-aceita{border:2px solid #00a650;background:#f0fdf4}
 input{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;font-size:15px;margin-top:8px}
 input.codigo{letter-spacing:4px;font-weight:900;text-align:center}
-.status-box{padding:12px;border-radius:12px;text-align:center;font-weight:800;font-size:14px;margin-top:10px}
-.status-analise{background:#fef3c7;color:#92400e}
-.status-aprovado{background:#dcfce7;color:#166534}
-.status-bloqueado{background:#fee2e2;color:#991b1b}
-.config-box{display:none;background:#f9fafb;border:1px solid #eee;border-radius:12px;padding:14px;margin-top:10px}
+.config-modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;justify-content:center;align-items:center}
+.config-content{background:#fff;width:90%;max-width:420px;border-radius:16px;padding:20px;max-height:85vh;overflow-y:auto}
 #map { width: 100%; height: 260px; border-radius: 12px; margin-top: 12px; display: none; }
 .row-botoes{display:flex;gap:8px;margin-top:8px}
 </style></head><body>
-<header>📦 ENTREAQUI - MOTOBOY</header>
+<header>
+  📦 ENTREAQUI - MOTOBOY
+  <button class="btn-config" onclick="abrirConfig(true)" title="Configurações">⚙️</button>
+</header>
+
+<!-- MODAL CONFIGURAÇÕES / EXTRATO DO MOTOBOY -->
+<div id="modalConfig" class="config-modal">
+  <div class="config-content">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <h3 style="margin:0">⚙️ Configurações & Ganhos</h3>
+      <button onclick="abrirConfig(false)" style="background:none;border:0;font-size:20px;cursor:pointer">✕</button>
+    </div>
+    
+    <label>Nova Senha</label>
+    <input id="novaSenhaMoto" type="password" placeholder="Nova senha">
+    <button class="btn btn-green" onclick="salvarSenhaMoto()" style="margin-top:8px">Salvar Senha</button>
+    
+    <h3 style="font-size:14px;margin-top:20px">Resumo de Ganhos</h3>
+    <div id="extratoMoto" style="font-size:13px;color:#333">Calculando...</div>
+    
+    <button class="btn btn-gray" onclick="sair()" style="margin-top:20px">Sair do Painel</button>
+  </div>
+</div>
+
 <div class="card">
 <h2 id="nomeMoto" style="margin:0">Motoboy</h2>
 <p id="cpfMoto" style="color:#666;margin:4px 0 0;font-size:13px"></p>
 <p id="placaMoto" style="color:#666;margin:4px 0 0;font-size:13px"></p>
-<div id="statusBox" class="status-box status-analise">Carregando status...</div>
 
-<button id="btnOnline" class="btn btn-green" onclick="alternarOnline()">🟢 Ficar Online</button>
+<button id="btnOnline" class="btn btn-green" onclick="alternarOnline()" style="margin-top:14px">🟢 Ficar Online</button>
 
-<button class="btn btn-gray" onclick="alternarConfig()" style="margin-top:12px">⚙️ Configurações & Meus Ganhos</button>
-<div id="boxConfig" class="config-box">
-  <h3 style="margin-top:0;font-size:14px">Alterar Senha</h3>
-  <label>Nova Senha</label>
-  <input id="novaSenhaMoto" type="password" placeholder="Nova senha">
-  <button class="btn btn-green" onclick="salvarSenhaMoto()">Salvar Senha</button>
-  <h3 style="font-size:14px;margin-top:14px">Resumo de Ganhos</h3>
-  <div id="extratoMoto" style="font-size:13px;color:#333">Calculando...</div>
-</div>
-
-<button class="btn btn-green" onclick="carregar()" style="margin-top:12px">🔄 Atualizar Entregas</button>
-
-<h3 style="font-size:15px">📦 Minha Entrega Ativa</h3>
+<h3 style="font-size:15px;margin-top:18px">📦 Minha Entrega Ativa</h3>
 <div id="minhas"></div>
 <div id="map"></div>
 
-<h3 style="font-size:15px">🔔 Pedidos Disponíveis na Fila</h3>
+<h3 style="font-size:15px;margin-top:18px">🔔 Pedidos Disponíveis na Fila</h3>
 <div id="lista"></div>
-
-<button class="btn btn-gray" onclick="sair()" style="margin-top:20px">Sair do Painel</button>
 </div>
 
 <script>
@@ -64,9 +70,19 @@ document.getElementById('nomeMoto').innerText = motoData.nome_completo || motoDa
 document.getElementById('cpfMoto').innerText = 'CPF: ' + motoData.cpf;
 document.getElementById('placaMoto').innerText = 'Placa: ' + (motoData.placa_moto || motoData.placa || 'N/A');
 
+function abrirConfig(abrir){
+  document.getElementById('modalConfig').style.display = abrir ? 'flex' : 'none';
+}
+
 async function sincronizarEstadoInicial(){
   const {data} = await supabaseClient.from('motoboys').select('online, status, bloqueado').eq('id', motoId).maybeSingle();
   if(data){
+    if(data.bloqueado || data.status==='bloqueado'){
+      alert('Sua conta foi bloqueada.');
+      localStorage.removeItem('motoboy');
+      location.href='index.html';
+      return;
+    }
     onlineAtual = !!data.online;
     atualizarBotaoOnlineVisual();
   }
@@ -98,18 +114,7 @@ function sair(){
   });
 }
 
-async function verificarStatus(){
-  const {data} = await supabaseClient.from('motoboys').select('*').eq('id', motoId).maybeSingle();
-  if(!data) return 'analise';
-  if(data.bloqueado || data.status==='bloqueado') return 'bloqueado';
-  if(data.aprovado || data.status==='aprovado') return 'aprovado';
-  return 'analise';
-}
-
 async function alternarOnline(){
-  const status = await verificarStatus();
-  if(status !== 'aprovado') return alert('Seu cadastro ainda está em análise ou bloqueado.');
-  
   onlineAtual = !onlineAtual;
   await supabaseClient.from('motoboys').update({online: onlineAtual}).eq('id', motoId);
   atualizarBotaoOnlineVisual();
@@ -117,18 +122,6 @@ async function alternarOnline(){
 }
 
 async function carregar(){
-  const status = await verificarStatus();
-  const box = document.getElementById('statusBox');
-  if(status==='aprovado'){
-    box.className='status-box status-aprovado'; box.innerText='🟢 APROVADO - Pronto para entregas';
-  } else if(status==='bloqueado'){
-    box.className='status-box status-bloqueado'; box.innerText='🔴 BLOQUEADO';
-    return;
-  } else {
-    box.className='status-box status-analise'; box.innerText='🟡 EM ANÁLISE';
-    return;
-  }
-
   // 1. Minha entrega ativa
   const {data: minhas} = await supabaseClient.from('entregas').select('*').eq('motoboy_id', motoId).in('status',['aceita','retirada']).order('created_at',{ascending:false});
   const entregaAtiva = minhas && minhas.length > 0 ? minhas[0] : null;
@@ -168,11 +161,11 @@ async function carregar(){
   // 2. Fila de pedidos disponíveis
   const listaDiv = document.getElementById('lista');
   if(!onlineAtual){
-    listaDiv.innerHTML = '<p style="font-size:13px;color:#666">Você está offline. Fique online para receber corridas.</p>';
+    listaDiv.innerHTML = '<p style="font-size:13px;color:#666">Você está offline. Fique online para receber corridas automaticamente.</p>';
     return;
   }
   if(entregaAtiva){
-    listaDiv.innerHTML = '<p style="font-size:13px;color:#666">Você já possui uma entrega ativa. Conclua-a para receber novas.</p>';
+    listaDiv.innerHTML = '<p style="font-size:13px;color:#666">Você já possui uma entrega ativa.</p>';
     return;
   }
 
@@ -189,7 +182,7 @@ async function carregar(){
     <div class="row-botoes">
       <button class="btn btn-green" style="margin-top:8px;flex:2" onclick="aceitar('${e.id}')">✅ Aceitar Corrida</button>
       <button class="btn btn-red" style="margin-top:8px;flex:1" onclick="recusar('${e.id}')">❌ Recusar</button>
-    </div></div>`).join('')||'<p style="font-size:13px;color:#666">Nenhuma entrega na fila no momento.</p>';
+    </div></div>`).join('')||'<p style="font-size:13px;color:#666">Aguardando novos pedidos na praça...</p>';
 
   // 3. Extrato
   const hojeStr = new Date().toISOString().split('T')[0];
@@ -214,7 +207,6 @@ async function carregar(){
 function inicializarMapa(entrega){
   if(!map){
     map = L.map('map').setView([-20.45, -50.55], 14);
-    // Usando OpenStreetMap padrão sem exigir chave de API
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '&copy; OpenStreetMap'
     }).addTo(map);
@@ -287,11 +279,6 @@ async function finalizar(id){
   carregar();
 }
 
-function alternarConfig(){
-  const b = document.getElementById('boxConfig');
-  b.style.display = b.style.display==='block' ? 'none' : 'block';
-}
-
 async function salvarSenhaMoto(){
   const nova = document.getElementById('novaSenhaMoto').value;
   if(!nova || nova.length<4) return alert('Senha inválida');
@@ -302,6 +289,10 @@ async function salvarSenhaMoto(){
 }
 
 sincronizarEstadoInicial().then(() => carregar());
-setInterval(()=>{ if(onlineAtual) carregar(); }, 8000);
+
+// Atualização automática a cada 5 segundos em segundo plano (sem precisar clicar em nada)
+setInterval(()=>{ 
+  if(onlineAtual) carregar(); 
+}, 5000);
 </script>
 </body></html>
