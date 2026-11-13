@@ -4,37 +4,42 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EntreAqui - Motoboy</title>
+    <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Leaflet CSS & JS para o Mini Mapa -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
-        .header-container { background: #28a745; color: white; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; position: relative; }
-        .btn-config { background: none; border: 0; color: #fff; font-size: 24px; cursor: pointer; }
-        .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .btn { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; margin-top: 8px; width: 100%; font-size: 14px; }
+        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 15px; color: #333; }
+        .header-container { background: #28a745; color: white; padding: 12px 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; position: relative; }
+        .btn-config { background: none; border: 0; color: #fff; font-size: 22px; cursor: pointer; }
+        .card { background: white; border-radius: 8px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; margin-top: 6px; width: 100%; font-size: 13px; }
         .btn-success { background-color: #28a745; }
         .btn-danger { background-color: #dc3545; }
         .btn-orange { background-color: #ff5a00; }
         .btn-blue { background-color: #1976d2; }
         .btn-gray { background-color: #eee; color: #333; }
-        .btn-online-toggle { width: 100%; padding: 12px; font-size: 15px; border-radius: 8px; border: 0; font-weight: 900; cursor: pointer; margin-bottom: 15px; }
+        .btn-online-toggle { width: 100%; padding: 10px; font-size: 14px; border-radius: 8px; border: 0; font-weight: 900; cursor: pointer; margin-bottom: 12px; }
         .btn:hover { opacity: 0.9; }
-        #sinal-gps { display: none; background: #eef2f5; color: #007bff; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; margin-bottom: 15px; border: 1px solid #b8daff; font-size: 13px; }
-        .timer { font-size: 16px; color: #dc3545; font-weight: bold; margin: 10px 0; }
+        #sinal-gps { display: none; background: #eef2f5; color: #007bff; padding: 8px; border-radius: 5px; text-align: center; font-weight: bold; margin-bottom: 12px; border: 1px solid #b8daff; font-size: 12px; }
+        .timer { font-size: 15px; color: #dc3545; font-weight: bold; margin: 8px 0; }
         .config-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
-        .config-content { background: #fff; width: 90%; max-width: 440px; border-radius: 16px; padding: 20px; max-height: 85vh; overflow-y: auto; }
-        label { font-size: 13px; font-weight: 700; display: block; margin: 10px 0 4px; }
-        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
-        input.codigo { letter-spacing: 4px; font-weight: 900; text-align: center; }
-        .item { border: 1px solid #eee; border-radius: 10px; padding: 12px; margin-top: 10px; background: #fafafa; font-size: 13px; }
-        .box-cancelar { display:none; background:#fff5f5; border:1px solid #feb2b2; padding:10px; border-radius:8px; margin-top:8px; }
+        .config-content { background: #fff; width: 92%; max-width: 440px; border-radius: 16px; padding: 20px; max-height: 85vh; overflow-y: auto; }
+        label { font-size: 12px; font-weight: 700; display: block; margin: 8px 0 3px; }
+        input, select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
+        input.codigo { letter-spacing: 4px; font-weight: 900; text-align: center; font-size: 16px; }
+        .item { border: 1px solid #eee; border-radius: 8px; padding: 10px; margin-top: 8px; background: #fafafa; font-size: 12px; }
+        .map-container { height: 160px; width: 100%; border-radius: 6px; margin-top: 10px; border: 1px solid #ccc; z-index: 1; }
+        .box-cancelar { display:none; background:#fff5f5; border:1px solid #feb2b2; padding:8px; border-radius:6px; margin-top:6px; }
     </style>
 </head>
 <body>
 
     <div class="header-container">
         <div>
-            <h2 style="margin: 0; font-size: 18px;">ENTREAQUI - MOTOBOY</h2>
-            <p id="nome-motoboy" style="margin: 5px 0 0 0; font-size: 13px;">Carregando dados...</p>
+            <h2 style="margin: 0; font-size: 16px;">ENTREAQUI - MOTOBOY</h2>
+            <p id="nome-motoboy" style="margin: 3px 0 0 0; font-size: 12px;">Carregando dados...</p>
         </div>
         <button class="btn-config" onclick="abrirConfig(true)" title="Configurações & Extrato">⚙️</button>
     </div>
@@ -43,27 +48,27 @@
     <div id="modalConfig" class="config-modal">
         <div class="config-content">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-                <h3 style="margin:0">⚙️ Configurações & Extrato</h3>
-                <button onclick="abrirConfig(false)" style="background:none;border:0;font-size:20px;cursor:pointer">✕</button>
+                <h3 style="margin:0; font-size:16px;">⚙️ Configurações & Extrato</h3>
+                <button onclick="abrirConfig(false)" style="background:none;border:0;font-size:18px;cursor:pointer">✕</button>
             </div>
             
-            <label style="margin-top:4px">Nova Senha</label>
+            <label>Nova Senha</label>
             <input id="novaSenhaMotoboy" type="password" placeholder="Nova senha">
             <button class="btn btn-success" onclick="salvarSenhaMotoboy()">Salvar Senha</button>
             
-            <h3 style="font-size:15px;margin-top:20px">📅 Filtrar Extrato por Data</h3>
+            <h3 style="font-size:14px;margin-top:16px">📅 Filtrar Extrato por Data</h3>
             <div style="display:flex; gap:8px;">
                 <div style="flex:1"><label>De:</label><input type="date" id="filtroDataInicio" onchange="carregarExtratoMotoboy()"></div>
                 <div style="flex:1"><label>Até:</label><input type="date" id="filtroDataFim" onchange="carregarExtratoMotoboy()"></div>
             </div>
 
-            <h3 style="font-size:15px;margin-top:15px">Extrato de Ganhos</h3>
-            <div id="extratoMotoboy" style="font-size:13px;color:#333">Calculando ganhos...</div>
+            <h3 style="font-size:14px;margin-top:14px">Extrato de Ganhos</h3>
+            <div id="extratoMotoboy" style="font-size:12px;color:#333">Calculando ganhos...</div>
             
-            <h3 style="font-size:14px;margin-top:16px">📜 Histórico de Entregas</h3>
-            <div id="historicoMotoboy" style="max-height:200px;overflow-y:auto"></div>
+            <h3 style="font-size:13px;margin-top:14px">📜 Histórico de Entregas</h3>
+            <div id="historicoMotoboy" style="max-height:160px;overflow-y:auto"></div>
             
-            <button class="btn btn-gray" onclick="sairDaConta()" style="margin-top:20px">Sair / Limpar Sessão</button>
+            <button class="btn btn-gray" onclick="sairDaConta()" style="margin-top:15px">Sair / Limpar Sessão</button>
         </div>
     </div>
 
@@ -77,16 +82,16 @@
 
     <!-- SEÇÃO 1: NOVA ENTREGA NA FILA -->
     <div id="card-oferta-entrega" class="card" style="display: none; border: 2px solid #28a745;">
-        <h3 style="margin-top: 0; color: #28a745;">⚡ Nova Entrega Disponível (Sua Vez na Fila)!</h3>
-        <p><strong>Loja:</strong> <span id="lbl-loja"></span></p>
-        <p><strong>Retirar em:</strong> <span id="lbl-retirada"></span></p>
-        <p><strong>Entregar em:</strong> <span id="lbl-destino"></span></p>
+        <h3 style="margin-top: 0; color: #28a745; font-size:15px;">⚡ Nova Entrega Disponível!</h3>
+        <p style="margin:4px 0;"><strong>Loja:</strong> <span id="lbl-loja"></span></p>
+        <p style="margin:4px 0;"><strong>Retirar em:</strong> <span id="lbl-retirada"></span></p>
+        <p style="margin:4px 0;"><strong>Entregar em:</strong> <span id="lbl-destino"></span></p>
         
         <div class="timer">
-            ⏳ Tempo para aceitar: <span id="contador-segundos">20</span> segundos
+            ⏳ Tempo para aceitar: <span id="contador-segundos">20</span>s
         </div>
 
-        <div style="display:flex; gap:10px">
+        <div style="display:flex; gap:8px">
             <button class="btn btn-success" style="margin:0" onclick="aceitarEntregaAtual()">Aceitar</button>
             <button class="btn btn-danger" style="margin:0" onclick="recusarEntregaAtual()">Recusar</button>
         </div>
@@ -94,9 +99,9 @@
 
     <!-- SEÇÃO 2: MINHAS ENTREGAS EM ANDAMENTO -->
     <div class="card">
-        <h3 style="margin-top:0">📦 Minhas Entregas em Andamento</h3>
+        <h3 style="margin-top:0; font-size:15px;">📦 Minhas Entregas em Andamento</h3>
         <div id="lista-entregas-andamento">
-            <p style="color: #777; font-size: 13px;">Nenhuma entrega em andamento no momento.</p>
+            <p style="color: #777; font-size: 12px;">Nenhuma entrega em andamento no momento.</p>
         </div>
     </div>
 
@@ -111,6 +116,7 @@
         let timerInterval = null;
         let onlineAtual = false;
         let watchId = null;
+        let mapasInstanciados = {}; // Armazena instâncias dos mini mapas por ID
 
         window.onload = async () => {
             await carregarDadosMotoboy();
@@ -129,25 +135,18 @@
 
         function tocarAlertaNovoPedido() {
             try {
-                if (navigator.vibrate) {
-                    navigator.vibrate([300, 150, 300, 150, 300]);
-                }
+                if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
-                
                 osc.type = 'sine';
                 osc.frequency.setValueAtTime(880, audioCtx.currentTime);
                 gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-                
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
-                
                 osc.start();
                 osc.stop(audioCtx.currentTime + 0.4);
-            } catch (e) {
-                console.log("Áudio bloqueado aguardando interação na tela.");
-            }
+            } catch (e) {}
         }
 
         function atualizarBotaoOnlineUI() {
@@ -190,9 +189,7 @@
 
         window.abrirConfig = function(abrir) {
             document.getElementById('modalConfig').style.display = abrir ? 'flex' : 'none';
-            if(abrir) {
-                carregarExtratoMotoboy();
-            }
+            if(abrir) carregarExtratoMotoboy();
         };
 
         window.sairDaConta = function() {
@@ -247,14 +244,14 @@
                     <b>${e.loja_nome || 'Loja'}</b> - <span style="color:green">ENTREGUE</span><br>
                     <small>Ganho: R$ ${Number(e.valor_motoboy||0).toFixed(2)} | Pago: ${e.pago_motoboy ? 'SIM' : 'NÃO'}<br>Data: ${(e.entregue_em||'').replace('T',' ').substring(0,16)}</small>
                 </div>
-            `).join('') || '<p style="color:#666;font-size:13px">Nenhum histórico encontrado para este período.</p>';
+            `).join('') || '<p style="color:#666;font-size:12px">Nenhum histórico encontrado para este período.</p>';
         }
 
         async function carregarDadosMotoboy() {
             try {
                 const { data, error } = await db
                     .from('motoboys')
-                    .select('id, nome_completo, nome, cpf, placa, placa_moto, online')
+                    .select('id, nome_completo, nome, cpf, placa, placa_moto, online, lat, lng')
                     .eq('cpf', cpfMotoboyLogado)
                     .limit(1);
 
@@ -356,22 +353,31 @@
                     sinalGps.style.display = 'block';
                     let htmlAndamento = '';
                     
+                    // IDs atuais para gerenciar instâncias de mapas
+                    let idsAtuais = andamentos.map(e => e.id);
+                    Object.keys(mapasInstanciados).forEach(id => {
+                        if (!idsAtuais.includes(id)) {
+                            mapasInstanciados[id].remove();
+                            delete mapasInstanciados[id];
+                        }
+                    });
+
                     andamentos.forEach((ent, index) => {
-                        let mapa = "";
+                        let mapaUrl = "";
                         let acaoHtml = "";
 
                         if (ent.status === 'aceita' || ent.status === 'em_andamento') {
-                            mapa = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(ent.endereco_retirada || '')}`;
+                            mapaUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(ent.endereco_retirada || '')}`;
                             acaoHtml = `
-                                <a href="${mapa}" target="_blank" class="btn btn-blue" style="display:block; text-align:center; text-decoration:none; box-sizing:border-box;">🗺️ Rota até a Loja (Retirada)</a>
+                                <a href="${mapaUrl}" target="_blank" class="btn btn-blue" style="display:block; text-align:center; text-decoration:none; box-sizing:border-box;">🗺️ Rota até a Loja (Retirada)</a>
                                 <button class="btn btn-orange" onclick="retirar('${ent.id}')">📦 Marcar como Retirado</button>
                             `;
                         } else if (ent.status === 'retirada') {
-                            mapa = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(ent.endereco_retirada || '')}&destination=${encodeURIComponent(ent.endereco || '')}`;
+                            mapaUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(ent.endereco_retirada || '')}&destination=${encodeURIComponent(ent.endereco || '')}`;
                             acaoHtml = `
-                                <a href="${mapa}" target="_blank" class="btn btn-blue" style="display:block; text-align:center; text-decoration:none; box-sizing:border-box;">🗺️ Rota até o Cliente (Entrega)</a>
+                                <a href="${mapaUrl}" target="_blank" class="btn btn-blue" style="display:block; text-align:center; text-decoration:none; box-sizing:border-box;">🗺️ Rota até o Cliente (Entrega)</a>
                                 
-                                <label style="font-size: 12px; font-weight: 700; display: block; margin-top: 10px;">PIN de 4 dígitos do Cliente:</label>
+                                <label style="font-size: 11px; font-weight: 700; display: block; margin-top: 6px;">PIN de 4 dígitos:</label>
                                 <input class="codigo" id="pin-${ent.id}" placeholder="0000" maxlength="4" inputmode="numeric">
                                 
                                 <button class="btn btn-success" onclick="finalizarEntrega('${ent.id}')">✅ Confirmar Entrega</button>
@@ -379,26 +385,37 @@
                         }
 
                         htmlAndamento += `
-                            <div class="item item-aceita" style="border-left: 4px solid #28a745; margin-bottom: 15px;">
-                                <p style="margin: 4px 0;"><strong>#${index + 1} - ${ent.cliente_nome || 'Cliente'}</strong> (${ent.loja_nome || 'Loja'})</p>
-                                <p style="margin: 4px 0; font-size: 13px;">📍 Retirar em: ${ent.endereco_retirada || '-'}</p>
-                                <p style="margin: 4px 0; font-size: 13px;">🎯 Entregar em: ${ent.endereco || '-'}</p>
+                            <div class="item item-aceita" style="border-left: 4px solid #28a745; margin-bottom: 12px;">
+                                <p style="margin: 3px 0;"><strong>#${index + 1} - ${ent.cliente_nome || 'Cliente'}</strong> (${ent.loja_nome || 'Loja'})</p>
+                                <p style="margin: 3px 0; font-size: 12px;">📍 Retirar em: ${ent.endereco_retirada || '-'}</p>
+                                <p style="margin: 3px 0; font-size: 12px;">🎯 Entregar em: ${ent.endereco || '-'}</p>
                                 
                                 ${acaoHtml}
                                 
-                                <button class="btn btn-danger" style="margin-top:8px; background:#e53e3e; font-size:12px; padding:8px" onclick="toggleBoxCancelar('${ent.id}')">❌ Cancelar / Devolver Corrida</button>
+                                <!-- Mini Mapa Leaflet logo abaixo -->
+                                <div id="map-${ent.id}" class="map-container"></div>
+
+                                <button class="btn btn-danger" style="margin-top:8px; background:#e53e3e; font-size:11px; padding:6px" onclick="toggleBoxCancelar('${ent.id}')">❌ Cancelar / Devolver Corrida</button>
                                 
                                 <div id="box-cancelar-${ent.id}" class="box-cancelar">
                                     <label style="font-size:11px; margin-top:0">Motivo do cancelamento:</label>
-                                    <input id="motivo-${ent.id}" placeholder="Ex: Cliente ausente / Problema moto" style="font-size:12px; padding:6px">
-                                    <button class="btn btn-danger" style="margin-top:6px; font-size:12px; padding:6px" onclick="confirmarCancelamentoEntrega('${ent.id}')">Confirmar e Devolver para Fila</button>
+                                    <input id="motivo-${ent.id}" placeholder="Ex: Cliente ausente / Problema moto" style="font-size:11px; padding:5px">
+                                    <button class="btn btn-danger" style="margin-top:5px; font-size:11px; padding:5px" onclick="confirmarCancelamentoEntrega('${ent.id}')">Confirmar e Devolver para Fila</button>
                                 </div>
                             </div>
                         `;
                     });
                     containerAndamento.innerHTML = htmlAndamento;
+
+                    // Inicializa os mini mapas após inserir no HTML
+                    andamentos.forEach(ent => {
+                        setTimeout(() => {
+                            inicializarMiniMapa(ent);
+                        }, 100);
+                    });
+
                 } else {
-                    containerAndamento.innerHTML = `<p style="color: #777; font-size: 13px;">Nenhuma entrega em andamento no momento.</p>`;
+                    containerAndamento.innerHTML = `<p style="color: #777; font-size: 12px;">Nenhuma entrega em andamento no momento.</p>`;
                     if (!ofertaAtiva && !onlineAtual) {
                         sinalGps.style.display = 'none';
                     }
@@ -406,6 +423,49 @@
             } catch (e) {
                 console.error("Erro na verificação do painel:", e);
             }
+        }
+
+        // Função para criar o Mini Mapa com ícone de Moto
+        async function inicializarMiniMapa(ent) {
+            const mapId = `map-${ent.id}`;
+            const container = document.getElementById(mapId);
+            if (!container) return;
+
+            // Se já existe instância, remove para recriar limpo
+            if (mapasInstanciados[ent.id]) {
+                mapasInstanciados[ent.id].remove();
+                delete mapasInstanciados[ent.id];
+            }
+
+            // Pega posição atual do motoboy do banco ou usa coordenadas padrão de Fernandópolis/Meridiano
+            const { data: motoboyData } = await db.from('motoboys').select('lat, lng').eq('id', motoboyLogadoId).single();
+            let lat = motoboyData?.lat || -20.4485;
+            let lng = motoboyData?.lng || -50.2452;
+
+            const map = L.map(mapId, { zoomControl: false }).setView([lat, lng], 14);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19
+            }).addTo(map);
+
+            // Ícone personalizado de Moto
+            const iconeMoto = L.divIcon({
+                className: 'custom-moto-icon',
+                html: '<div style="background:#28a745;color:white;padding:4px 8px;border-radius:12px;font-weight:bold;font-size:11px;box-shadow:0 2px 5px rgba(0,0,0,0.3);white-space:nowrap;">🛵 Moto</div>',
+                iconSize: [50, 24],
+                iconAnchor: [25, 12]
+            });
+
+            L.marker([lat, lng], { icon: iconeMoto }).addTo(map).bindPopup('Sua localização (Motoboy)');
+
+            // Marcador do Destino (Loja ou Cliente dependendo da etapa)
+            let destinoTexto = (ent.status === 'aceita' || ent.status === 'em_andamento') ? `Loja: ${ent.endereco_retirada}` : `Cliente: ${ent.endereco}`;
+            
+            // Usamos coordenadas genéricas ou centralizadas para o destino se não houver geocodificação exata, mas o Leaflet posiciona bem com o visualizador
+            L.marker([lat + 0.002, lng + 0.002]).addTo(map).bindPopup(destinoTexto);
+
+            mapasInstanciados[ent.id] = map;
+            setTimeout(() => { map.invalidateSize(); }, 200);
         }
 
         function iniciarContador20s() {
@@ -499,9 +559,7 @@
             const motivoInput = document.getElementById('motivo-' + idEntrega);
             const motivo = motivoInput ? motivoInput.value.trim() : '';
 
-            if (!motivo) {
-                return alert('Por favor, informe o motivo do cancelamento.');
-            }
+            if (!motivo) return alert('Por favor, informe o motivo do cancelamento.');
 
             const { error } = await db
                 .from('entregas')
