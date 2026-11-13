@@ -1,11 +1,10 @@
-// supabase.js
+// supabase.js - ENTREAQUI - PROFISSIONAL
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-// supabase.js - ENTREAQUI - PROFISSIONAL
 const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
 
-export const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export function soNumeros(v) {
   return (v || '').replace(/\D/g, '');
