@@ -1,5 +1,6 @@
-const SUPABASE_URL = 'SUA_URL_DO_SUPABASE';
-const SUPABASE_ANON_KEY = 'SUA_CHAVE_ANON_DO_SUPABASE';
+// supabase.js - ENTREAQUI - PROFISSIONAL
+const SUPABASE_URL = "https://omxfbskvrcbbrydgsmsg.supabase.co";
+const SUPABASE_KEY = "sb_publishable_Akx4rEvoEv4SHOx4ijG-vA_WmY-vU5-";
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
